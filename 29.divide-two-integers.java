@@ -26,15 +26,18 @@ class Solution {
             // 一直双倍减去当前的divisor，再把最大的那个从dividen中减去
             int currSum = -1;
             int currDivisor = divisor;
-            // 这里，一定要用左边减，因为用加法的话，可能会overflow
+            // 这里，一定要用左边减，这样左边是一个负的减一个负的，等于加法
+            // 如果右边用加法的话，可能会overflow，两个负的加起来，overflow就会变成正了
             while(dividend - currDivisor < currDivisor) {
+                System.out.println(dividend + " " + currDivisor);
                 currSum += currSum;
                 currDivisor += currDivisor;
             }
             res += currSum;
             dividend -= currDivisor;
         }
-        // 如果是最小的那个Integer，代表已经overflow了，是最大的那个值
+        // 如果是最大的那个Integer 2^31，代表已经overflow了
+        // 根据题意，返回2^31 - 1
         if (sign < 0 && res == Integer.MIN_VALUE) {
             return Integer.MAX_VALUE;
         }
