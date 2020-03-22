@@ -29,7 +29,6 @@ class Solution {
             // 这里，一定要用左边减，这样左边是一个负的减一个负的，等于加法
             // 如果右边用加法的话，可能会overflow，两个负的加起来，overflow就会变成正了
             while(dividend - currDivisor < currDivisor) {
-                System.out.println(dividend + " " + currDivisor);
                 currSum += currSum;
                 currDivisor += currDivisor;
             }
