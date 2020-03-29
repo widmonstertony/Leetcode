@@ -44,10 +44,13 @@ class Solution {
                         ans++;
                     }
                     else {
+                        // 取出下一个开头的char，如果和当前一样，则加回当前的List
                         char newChar = word.charAt(1);
+                        String newString = word.substring(1);
                         if (newChar == currChar) {
-                            newCharList.add(word.substring(1));
+                            newCharList.add(newString);
                         }
+                        // 如果不同，把新的去头的String加到属于它的List里
                         else {
                             List<String> currCharList;
                             if (wordsMap.containsKey(newChar)) {
@@ -57,12 +60,14 @@ class Solution {
                                 currCharList = new ArrayList<>();
                                 wordsMap.put(newChar, currCharList);
                             }
-                            currCharList.add(word.substring(1));
+                            currCharList.add(newString);
                         }
                     }
                 }
                 wordsMap.remove(currChar);
-                wordsMap.put(currChar, newCharList);
+                if (newCharList.size() > 0) {
+                    wordsMap.put(currChar, newCharList);
+                }
             }
         }
         return ans;
