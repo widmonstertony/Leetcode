@@ -61,7 +61,7 @@ class Solution {
             return true;
         }
     }
-    int MAX_EDGE_VAL = 1000;
+    final int MAX_EDGE_VAL = 1000;
 
     public int[] findRedundantConnection(int[][] edges) {
         DisjointSetUnion dsu = new DisjointSetUnion(MAX_EDGE_VAL + 1);
