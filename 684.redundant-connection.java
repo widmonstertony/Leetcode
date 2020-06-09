@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import javafx.scene.transform.Rotate;
+
 /*
  * @lc app=leetcode id=684 lang=java
  *
@@ -16,21 +18,25 @@ import java.util.Set;
 class Solution {
     // Union Find 解法
     class DisjointSetUnion {
-        int[] parent;
+        // 如果root的值是正数，表示为该元素的父节点
+        // 如果为负数，则表示该元素所在集合的代表
+        // 而且值的相反数即为集合中的元素个数
+        int[] root;
         public DisjointSetUnion(int size) {
-            parent = new int[size];
+            root = new int[size];
             for (int i = 0; i < size; i++) {
-                parent[i] = i;
+                root[i] = -1;
             }
         }
         // 找到元素 x 所在的集合的代表
         public int find(int x) {
-            // 因为如果parent[x]是它自己的话，代表它是一个root的头
-            // 如果不是的话，找到它的root，并且压缩路径
-            if (parent[x] != x) {
-                parent[x] = find(parent[x]);
+            // 如果root[x]是负数的话，返回他自己，代表它是root
+            if (root[x] < 0) {
+                return x;
             }
-            return parent[x];
+            // 否则找到它的root，压缩路径
+            root[x] = find(root[x]);
+            return root[x];
         }
         // 把元素 x 和元素 y 所在的集合合并
         // 要求 x 和 y 所在的集合不相交
@@ -40,7 +46,18 @@ class Solution {
             if (rootOfX == rootOfY) {
                 return false;
             }
-            parent[rootOfY] = rootOfX;
+            // 如果rootOfX的root的值小于右边的值
+            // 因为是负值，代表左边的集合的个数多于右边
+            if (root[rootOfX] < root[rootOfY]) {
+                // 把右边的root的所有集合的个数加给左边
+                // 再把rootOfY定为rootOfX，代表X是Y的root
+                root[rootOfX] += root[rootOfY];
+                root[rootOfY] = rootOfX;
+            }
+            else {
+                root[rootOfY] += root[rootOfX];
+                root[rootOfX] = rootOfY;
+            }
             return true;
         }
     }
