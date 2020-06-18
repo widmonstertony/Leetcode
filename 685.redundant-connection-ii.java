@@ -31,7 +31,6 @@ class Solution {
                 first = new int[]{root[edge[1]], edge[1]};
                 second = new int[]{edge[0], edge[1]};
                 edge[1] = 0;
-                System.out.println(root[edge[1]]);
             }
         }
         // 重置root数组，确保初始状态都是自己是root的状态
