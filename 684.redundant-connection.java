@@ -1,11 +1,10 @@
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import javafx.scene.transform.Rotate;
 
 /*
  * @lc app=leetcode id=684 lang=java
@@ -24,9 +23,10 @@ class Solution {
         int[] root;
         public DisjointSetUnion(int size) {
             root = new int[size];
-            for (int i = 0; i < size; i++) {
-                root[i] = -1;
-            }
+            Arrays.fill(root, -1);
+            // for (int i = 0; i < size; i++) {
+            //     root[i] = -1;
+            // }
         }
         // 找到元素 x 所在的集合的代表
         public int find(int x) {
