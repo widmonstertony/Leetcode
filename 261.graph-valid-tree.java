@@ -18,7 +18,7 @@ class Solution {
                 return false;
             }
         }
-        // 如果
+        // 如果所有edges的长度和number的数量不一样，说明没有全部连起来
         return edges.length == n - 1;
     }
     // 把x和y的root连起来
