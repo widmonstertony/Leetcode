@@ -1,3 +1,7 @@
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.Queue;
+import org.apache.commons.lang3.tuple.Pair;
 /*
  * @lc app=leetcode id=200 lang=java
  *
@@ -18,15 +22,46 @@ class Solution {
                 if (visited[i][j] || grid[i][j] == '0') {
                     continue;
                 }
-                // 把当前岛周围所有的岛都mark为visited
-                dfsVisit(i, j, grid, visited);
                 // 总共岛的数量加一
                 res++;
+                
+                // dfs解法
+                // 把当前岛周围所有的岛都mark为visited
+                dfsVisit(i, j, grid, visited);
+
+                // bfs解法
+                // Queue<Pair> queue = new LinkedList<Pair>();
+                // queue.offer(new Pair(i, j));
+                // while (!queue.isEmpty()) {
+                //     Pair curr = queue.poll();
+                //     int x = curr.getLeft();
+                //     int y = curr.getRight();
+                //     if (x < 0 || y < 0 || x >= grid.length || y >= grid[0].length || visited[x][y] || grid[x][y] == '0') {
+                //         continue;
+                //     }
+                //     visited[x][y] = true;
+                //     queue.offer(new Pair(x, y + 1));
+                //     queue.offer(new Pair(x + 1, y));
+                //     queue.offer(new Pair(x - 1, y));
+                //     queue.offer(new Pair(x, y - 1));
+                // }
             }
         }
         return res;
     }
-
+    class Pair {
+        int mLeft, mRight;
+        Pair(int i, int j) {
+            mLeft = i;
+            mRight = j;
+        }
+        int getLeft() {
+            return mLeft;
+        }
+        int getRight() {
+            return mRight;
+        }
+    }
     private void dfsVisit(int i, int j, char[][] grid, boolean[][] visited) {
         if (i < 0 || j < 0 || i >= grid.length || j >= grid[0].length || visited[i][j] || grid[i][j] == '0') {
             return;
