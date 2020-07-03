@@ -89,12 +89,16 @@ class Solution {
     //         }
     //     }
     //     // 把当前所有的值，按照大小排列，然后从大的开始逐个visit
-    //     Collections.sort(values, new Comparator<List<Integer>>(){
-    //         @Override
-    //         public int compare(List<Integer> o1, List<Integer> o2) {
-    //             return o2.get(0) - o1.get(0);
-    //         }
+    //     Collections.sort(values, (o1, o2) -> {
+    //         return o2.get(0) - o1.get(0);
     //     });
+    //     // 另一种写法
+    //     // Collections.sort(values, new Comparator<List<Integer>>(){
+    //     //     @Override
+    //     //     public int compare(List<Integer> o1, List<Integer> o2) {
+    //     //         return o2.get(0) - o1.get(0);
+    //     //     }
+    //     // });
     //     Set<Integer> visited = new HashSet<>();
     //     visited.add(0);
     //     visited.add(R * C - 1);

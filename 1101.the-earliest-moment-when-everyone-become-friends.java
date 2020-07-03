@@ -1,5 +1,4 @@
 import java.util.Arrays;
-import java.util.Comparator;
 
 /*
  * @lc app=leetcode id=1101 lang=java
@@ -12,11 +11,8 @@ class Solution {
     public int earliestAcq(int[][] logs, int N) {
         int[] root = new int[N];
         Arrays.fill(root, -1);
-        Arrays.sort(logs, new Comparator<int[]>() {
-            @Override
-            public int compare(int[] a, int[] b) {
+        Arrays.sort(logs, (a, b) -> {
                 return a[0] - b[0];
-            }
         });
         for (int[] log : logs) {
             union(log[1], log[2], root);
