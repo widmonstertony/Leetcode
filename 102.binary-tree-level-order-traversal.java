@@ -28,6 +28,7 @@ import javax.swing.tree.TreeNode;
  * }
  */
 class Solution {
+    // BFS Level Traversal
     public List<List<Integer>> levelOrder(TreeNode root) {
         List<List<Integer>> resList = new ArrayList<>();
         Queue<TreeNode> queue = new LinkedList<>();
@@ -82,6 +83,23 @@ class Solution {
     //         currLevelNum = nextLevelNum;
     //     }
     //     return resList;
+    // }
+    // dfs 遍历
+    // public List<List<Integer>> levelOrder(TreeNode root) {
+    //     List<List<Integer>> resList = new ArrayList<>();
+    //     dfsLevelTraversal(root, 0, resList);
+    //     return resList;
+    // }
+    // private void dfsLevelTraversal(TreeNode root, int level, List<List<Integer>> resList) {
+    //     if (root == null) {
+    //         return;
+    //     }
+    //     if (resList.size() <= level || resList.get(level) == null) {
+    //         resList.add(level, new ArrayList<>());
+    //     }
+    //     resList.get(level).add(root.val);
+    //     dfsLevelTraversal(root.left, level + 1, resList);
+    //     dfsLevelTraversal(root.right, level + 1, resList);
     // }
 }
 // @lc code=end
