@@ -17,11 +17,11 @@ class Solution {
         dp[0] = 0;
         for (int i = 1; i <= amount; i++) {
             // 遍历所有硬币，一直更新当前数额i的最佳组合方式
-            for (int j = 0; j < coins.length; j++) {
+            for (int coin: coins) {
                 // coins[j] 为第j个硬币 确保要比当前数目i大
-                if (coins[j] <= i) {
+                if (coin <= i) {
                     //  i - coins[j] 为钱数i减去其中一个硬币的值
-                    dp[i] = Math.min(dp[i], dp[i - coins[j]] + 1); 
+                    dp[i] = Math.min(dp[i], dp[i - coin] + 1); 
                 }
             }
         }
