@@ -28,7 +28,7 @@ class Solution {
         // 遍历所有数字，将该数字对应的 mask 算出来
         // 也就是把所有可以选的数字都试一遍
         for (int i = 0; i < maxChoosableInteger; i++) {
-            // 使用一个整型数按位来记录数组中的某个数字是否使用过
+            // 使用一个整型数，按位来记录数组中的某个数字是否使用过
             int curr = (1 << i);
             // 如果其和 usedNum 相与为0的话，说明该数字没有使用过
             if ((curr & usedNum) == 0) {
