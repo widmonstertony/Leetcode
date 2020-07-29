@@ -29,6 +29,7 @@ class Solution {
         // 也就是把所有可以选的数字都试一遍
         for (int i = 0; i < maxChoosableInteger; i++) {
             // 使用一个整型数，按位来记录数组中的某个数字是否使用过
+            // 因为maxChoosableInteger不会超过20，整型数有32位
             int curr = (1 << i);
             // 如果其和 usedNum 相与为0的话，说明该数字没有使用过
             if ((curr & usedNum) == 0) {
