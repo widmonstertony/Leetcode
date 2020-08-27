@@ -10,7 +10,6 @@ import java.util.Arrays;
 class Solution {
     public int coinChange(int[] coins, int amount) {
         Arrays.sort(coins);
-        int res = 0;
         // dp[i] 表示钱数为i时的最小的找零硬币数
         int[] dp = new int[amount + 1];
         Arrays.fill(dp, amount + 1);
