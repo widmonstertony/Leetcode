@@ -12,11 +12,9 @@ class Solution {
     public int countArrangement(int N) {
         // 保存所有答案，可以用个count，这里为了debug方便用了List
         List<List<Integer>> resList = new LinkedList<>();
-        boolean[] visited = new boolean[N];
         // 可以用一个数来代替这个list用来表示当前尝试到第几位
         // 这里用它的size来知道遍历到了第几位
-        List<Integer> currList = new LinkedList<>();
-        helper(currList, visited, resList);
+        helper(new LinkedList<>(), new boolean[N], resList);
         return resList.size();
     }
     private void helper(List<Integer> currList, boolean[] visited, List<List<Integer>> resList) {
