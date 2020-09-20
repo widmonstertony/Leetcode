@@ -31,9 +31,11 @@ class Twitter {
             return this.id;
         }
     }
-
+    
     private int mOrderCnt;
+    // Pull的解法：key是用户A的userId，set里的是用户A点了关注的所有的人的userID
     private Map<Integer, Set<Integer>> mFollowerMap;
+    // Pull的解法：key是用户A的userId，list是他发的所有的推特
     private Map<Integer, List<TimeTweet>> mUserTweets;
     private final int MAX_TWEET_EACH_TIME = 10;
     /** Initialize your data structure here. */
