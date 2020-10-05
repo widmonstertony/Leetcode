@@ -7,21 +7,25 @@
 // @lc code=start
 class Solution {
     public String shortestPalindrome(String s) {
-        if(s.length() == 0 || s.length() == 1) return s;
-        int i = 0, j = s.length() - 1;
-        while(j >= 0) {
-            if(s.charAt(i) == s.charAt(j)) {
-                i++;
-            }
-            j--;
+        if(s.length() <= 1) {
+            return s;
         }
-        if(i == s.length()) return s;
-        String tem = s.substring(i);
-        StringBuilder sb = new StringBuilder(tem);
-        sb.reverse();
-        sb.append(shortestPalindrome(s.substring(0, i)));
-        sb.append(tem);
-        return sb.toString();
+        // 找出字符串s的最长回文前缀
+        int leftIdx = 0, rightIdx = s.length() - 1;
+        while (rightIdx >= 0) {
+            if (s.charAt(leftIdx) == s.charAt(rightIdx)) {
+                leftIdx++;
+            }
+            rightIdx--;
+        }
+        if (leftIdx == s.length()) {
+            return s;
+        }
+        StringBuilder resBuilder = new StringBuilder(s.substring(leftIdx));
+        resBuilder.reverse();
+        resBuilder.append(shortestPalindrome(s.substring(0, leftIdx)));
+        resBuilder.append(s.substring(leftIdx));
+        return resBuilder.toString();
     }
 }
 // @lc code=end
