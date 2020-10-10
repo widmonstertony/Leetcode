@@ -22,44 +22,81 @@
  *     public List<NestedInteger> getList();
  * }
  */
+// 在hasnext的时候把list里的内容一个一个倒着放进stack
 public class NestedIterator implements Iterator<Integer> {
 
-    List<Integer> flattenList;
-    int currPos;
+    Stack<NestedInteger> flattenSt;
     public NestedIterator(List<NestedInteger> nestedList) {
-        flattenList = new ArrayList<>();
-        for (NestedInteger currNext : nestedList) {
-            helper(currNext, flattenList);
-        }
-        currPos = 0;
-    }
-
-    private void helper(NestedInteger currNext, List<Integer> flattenList) {
-        if (currNext.isInteger()) {
-            flattenList.add(currNext.getInteger());
-        }
-        else {
-            for (NestedInteger nextInt : currNext.getList()) {
-                helper(nextInt, flattenList);
-            }
+        flattenSt = new Stack<>();
+        for (int i = nestedList.size() - 1; i >= 0; i--) {
+            flattenSt.push(nestedList.get(i));
         }
     }
 
     @Override
     public Integer next() {
         if (hasNext()) {
-            return flattenList.get(currPos++);
+            return flattenSt.pop().getInteger();
         }
-        else {
-            return -1;
-        }
+        return -1;
     }
 
     @Override
     public boolean hasNext() {
-        return currPos <= flattenList.size() - 1;
+        while (!flattenSt.isEmpty()) {
+            NestedInteger topNest = flattenSt.peek();
+            if (topNest.isInteger()) {
+                return true;
+            }
+            else {
+                flattenSt.pop();
+                List<NestedInteger> nestedList = topNest.getList();
+                for (int i = nestedList.size() - 1; i >= 0; i--) {
+                    flattenSt.push(nestedList.get(i));
+                }
+            }
+        }
+        return false;
     }
 }
+
+// 直接压扁成queue的做法
+// public class NestedIterator implements Iterator<Integer> {
+
+//     Queue<Integer> flattenList;
+//     public NestedIterator(List<NestedInteger> nestedList) {
+//         flattenList = new LinkedList<>();
+//         for (NestedInteger currNext : nestedList) {
+//             helper(currNext, flattenList);
+//         }
+//     }
+
+//     private void helper(NestedInteger currNext, Queue<Integer> flattenList) {
+//         if (currNext.isInteger()) {
+//             flattenList.add(currNext.getInteger());
+//         }
+//         else {
+//             for (NestedInteger nextInt : currNext.getList()) {
+//                 helper(nextInt, flattenList);
+//             }
+//         }
+//     }
+
+//     @Override
+//     public Integer next() {
+//         if (hasNext()) {
+//             return flattenList.poll();
+//         }
+//         else {
+//             return -1;
+//         }
+//     }
+
+//     @Override
+//     public boolean hasNext() {
+//         return !flattenList.isEmpty();
+//     }
+// }
 
 /**
  * Your NestedIterator object will be instantiated and called as such:
