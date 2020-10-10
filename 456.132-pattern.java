@@ -10,6 +10,10 @@ class Solution {
         // 这个数代表着132中的2
         int secondIn132 = Integer.MIN_VALUE;
         // 单调递减stack
+        // 因为是从后往前遍历，所以大的数并且位置还在后面的就先进栈
+        // 同时一旦发现比栈顶还大的数，就先把栈顶取出来
+        // 这时候栈顶就是132里的2，因为栈顶比当前位置更靠后
+        // 而当前的数可以充当3，保证了栈里存放的都是可以维持3 > 2 的 3值
         Stack<Integer> numSt = new Stack<>();
         for (int i = nums.length - 1; i >= 0; i--) {
             int currInt = nums[i];
