@@ -8,6 +8,8 @@
 class Solution {
     public int[] nextGreaterElement(int[] nums1, int[] nums2) {
         int[] resArr = new int[nums1.length];
+        // 一个单调递减的stack
+        // 一旦遍历时的数不递减了，说明找到那个大于栈顶元素的数字了
         Stack<Integer> numSt = new Stack<>();
         Map<Integer, Integer> numMap = new HashMap<>();
         for (int num : nums2) {
