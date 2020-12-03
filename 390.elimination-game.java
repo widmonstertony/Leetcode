@@ -8,6 +8,7 @@
 class Solution {
     public int lastRemaining(int n) {
         boolean leftToRight = true;
+        // res 表示的是当前剩下的左数第一个数字
         int res = 1, nextStep = 1, remainCnt = n;
         while (remainCnt > 1) {
             // 如果是从左往右方向
