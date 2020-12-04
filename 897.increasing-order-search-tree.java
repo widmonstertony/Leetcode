@@ -38,10 +38,13 @@ class Solution {
             leftTail.right = root;
             root.left = null;
         }
+        else {
+            leftTop = root;
+        }
         // 再把右边的node变成一条线，并且把root和这条线的最左上角的node连接
         TreeNode rightTop = increasingBST(root.right);
         root.right = rightTop;
-        return leftTop == null ? root : leftTop;
+        return leftTop;
     }
 }
 // @lc code=end
