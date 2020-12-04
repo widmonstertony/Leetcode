@@ -30,12 +30,12 @@ class Solution {
         // 如果左边的线存在顶部，则需要把线的尾端和root连接上
         if (leftTop != null) {
             // 找到线的尾端
-            TreeNode currNode = leftTop;
-            while (currNode.right !=null) {
-                currNode = currNode.right;
+            TreeNode leftTail = leftTop;
+            while (leftTail.right != null) {
+                leftTail = leftTail.right;
             }
             // 把尾端和root连上，并且把root的左node清空
-            currNode.right = root;
+            leftTail.right = root;
             root.left = null;
         }
         // 再把右边的node变成一条线，并且把root和这条线的最左上角的node连接
