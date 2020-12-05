@@ -29,14 +29,13 @@ class Solution {
             l2Stack.push(l2);
             l2 = l2.next;
         }
-        ListNode laterNode = null;
+        ListNode currNode = null;
         int carry = 0;
         while (!l1Stack.isEmpty() || !l2Stack.isEmpty()) {
             int currSum = 0;
             if (!l1Stack.isEmpty()) {
                 currSum += l1Stack.pop().val;
             }
-
             if (!l2Stack.isEmpty()) {
                 currSum += l2Stack.pop().val;
             }
@@ -48,14 +47,12 @@ class Solution {
             else {
                 carry = 0;
             }
-            ListNode currNode = new ListNode(currSum, laterNode);
-            laterNode = currNode;
+            currNode = new ListNode(currSum, currNode);
         }
         if (carry != 0) {
-            ListNode currNode = new ListNode(carry, laterNode);
-            laterNode = currNode;
+            currNode = new ListNode(carry, currNode);
         }
-        return laterNode;
+        return currNode;
     }
 }
 // @lc code=end
