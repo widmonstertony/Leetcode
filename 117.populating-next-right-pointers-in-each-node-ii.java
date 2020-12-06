@@ -29,49 +29,74 @@ class Node {
 */
 
 class Solution {
-    // 这里由于子树有可能残缺，故需要平行扫描父节点同层的节点，找到他们的左右子节点
-    // recursive 方法
     public Node connect(Node root) {
         if (root == null) {
             return root;
         }
-        if (root.left != null) {
-            if (root.right != null) {
-                root.left.next = root.right;
-            }
-            else {
-                Node nextHasChildNode = root.next;
-                if (nextHasChildNode != null) {
-                    while (nextHasChildNode.next != null && nextHasChildNode.left == null && nextHasChildNode.right == null) {
-                        nextHasChildNode = nextHasChildNode.next;
-                    }
-                    if (nextHasChildNode.left != null) {
-                        root.left.next = nextHasChildNode.left;
-                    }
-                    else if (nextHasChildNode.right != null) {
-                        root.left.next = nextHasChildNode.right;
-                    }
-                } 
-            }
-        }
-        if (root.right != null) {
-            Node nextHasChildNode = root.next;
-            if (nextHasChildNode != null) {
-                while (nextHasChildNode.next != null && nextHasChildNode.left == null && nextHasChildNode.right == null) {
-                    nextHasChildNode = nextHasChildNode.next;
+        Queue<Node> nodeQueue = new LinkedList<>();
+        nodeQueue.add(root);
+        while (!nodeQueue.isEmpty()) {
+            int currLevelCnt = nodeQueue.size();
+            Node prevNode = null;
+            for (int i = 0; i < currLevelCnt; i++) {
+                Node currNode = nodeQueue.poll();
+                if (prevNode != null) {
+                    prevNode.next = currNode;
                 }
-                if (nextHasChildNode.left != null) {
-                    root.right.next = nextHasChildNode.left;
+                if (currNode.left != null) {
+                    nodeQueue.add(currNode.left);
                 }
-                else if (nextHasChildNode.right != null) {
-                    root.right.next = nextHasChildNode.right;
+                if (currNode.right != null) {
+                    nodeQueue.add(currNode.right);
                 }
+                prevNode = currNode;
             }
         }
-        connect(root.right);
-        connect(root.left);
         return root;
     }
+    // 这里由于子树有可能残缺，故需要平行扫描父节点同层的节点，找到他们的左右子节点
+    // recursive 方法
+    // public Node connect(Node root) {
+    //     if (root == null) {
+    //         return root;
+    //     }
+    //     if (root.left != null) {
+    //         if (root.right != null) {
+    //             root.left.next = root.right;
+    //         }
+    //         else {
+    //             Node nextHasChildNode = root.next;
+    //             if (nextHasChildNode != null) {
+    //                 while (nextHasChildNode.next != null && nextHasChildNode.left == null && nextHasChildNode.right == null) {
+    //                     nextHasChildNode = nextHasChildNode.next;
+    //                 }
+    //                 if (nextHasChildNode.left != null) {
+    //                     root.left.next = nextHasChildNode.left;
+    //                 }
+    //                 else if (nextHasChildNode.right != null) {
+    //                     root.left.next = nextHasChildNode.right;
+    //                 }
+    //             } 
+    //         }
+    //     }
+    //     if (root.right != null) {
+    //         Node nextHasChildNode = root.next;
+    //         if (nextHasChildNode != null) {
+    //             while (nextHasChildNode.next != null && nextHasChildNode.left == null && nextHasChildNode.right == null) {
+    //                 nextHasChildNode = nextHasChildNode.next;
+    //             }
+    //             if (nextHasChildNode.left != null) {
+    //                 root.right.next = nextHasChildNode.left;
+    //             }
+    //             else if (nextHasChildNode.right != null) {
+    //                 root.right.next = nextHasChildNode.right;
+    //             }
+    //         }
+    //     }
+    //     connect(root.right);
+    //     connect(root.left);
+    //     return root;
+    // }
 
     // // 这里由于子树有可能残缺，故需要平行扫描父节点同层的节点，找到他们的左右子节点
     // // constant space O(1)，runtime 接近O(N)
