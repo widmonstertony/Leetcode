@@ -1,8 +1,8 @@
 # Leetcode
 ## this is the repo for me to practice leetcode and store the solutions with my thoughts
 
-题目|问题|解法|考点 | 
---|:--:|--:|--: | 
+题目|问题|解法|考点
+-----|:------:|:------:|:------: 
 1. Two Sum|[找一个数组里和为指定数字的两个数](https://leetcode.com/problems/two-sum/)|[把数字放进HashMap，直接找一个数是否存在于hashmap](https://github.com/widmonstertony/Leetcode/blob/master/1.two-sum.java) | Hash Table | 
 2. Add Two Numbers|[把代表两个数的两个linkedlist加起来变成一个](https://leetcode.com/problems/add-two-numbers/) |[写一个recursion来分别把两个linkedlist的每个node和carry一次加起来](https://github.com/widmonstertony/Leetcode/blob/master/2.add-two-numbers.java) | recursion, linkedlist | 
 3. Longest Substring Without Repeating Characters |[找到字符串的最长的没有重复字符的子字符串](https://leetcode.com/problems/longest-substring-without-repeating-characters/)| [一边遍历字符串一边用hahstable记录下每个字符最后出现的位置，同时用一个left指针代表子字符串的最左边，一旦遇到有重复的字符串就更新left并且更新长度的答案](https://github.com/widmonstertony/Leetcode/blob/master/3.longest-substring-without-repeating-characters.java) | Sliding Window, HashTable | 
