@@ -10,3 +10,4 @@
 |5. Longest Palindromic Substring|[最长回文子字符串](https://leetcode.com/problems/longest-palindromic-substring/)| [dp[i][j]代表从i到j是否为回文串，通过dp[i + 1][j - 1]判断当前i j是否可以组成回文串](https://github.com/widmonstertony/Leetcode/blob/master/5.longest-palindromic-substring.java) | DP
 |6. ZigZag Conversion|[把原字符串用写之字的形式转换](https://leetcode.com/problems/zigzag-conversion/)| [用变量来记录当前遍历的方向，到0往下走，到底往上走](https://github.com/widmonstertony/Leetcode/blob/master/6.zig-zag-conversion.java) | 字符串
 |7. Reverse Integer|[把一个数字顺序反转](https://leetcode.com/problems/reverse-integer/)| [一直除以10获得余数，再给答案乘以10加上余数，乘以十前确认没有超过最大整数](https://github.com/widmonstertony/Leetcode/blob/master/7.reverse-integer.java) | 数学，overflow处理
+|8. String to Integer (atoi)|[判断一个整数是否是回文数](https://leetcode.com/problems/string-to-integer-atoi/)| [先处理空字符，再处理符号，然后一直给base乘以10加上当前字符，乘以十前确认没有超过最大整数，最后base乘以符号](https://github.com/widmonstertony/Leetcode/blob/master/8.string-to-integer-atoi.java) | 数学，overflow处理
