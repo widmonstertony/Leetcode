@@ -14,3 +14,5 @@
 |9. Palindrome Number|[判断一个整数是否是回文数](https://leetcode.com/problems/palindrome-number/)| [一直除以10然后一直给base乘以10加上当前数字除以十的余数，最后确认base是否和一开始的数相等](https://github.com/widmonstertony/Leetcode/blob/master/9.palindrome-number.java) | 数学，overflow处理
 |10. Regular Expression Matching|[正则表达式匹配](https://leetcode.com/problems/regular-expression-matching/)| [先处理表达式0和1长度的情况，然后处理第二个字符不是* 的情况，判断首字符是否匹配并从第二个字符开始递归这个函数来得到匹配结果，再来处理第二个字符是* 的情况，循环条件为若s不为空且首字符匹配（包括 p[0] 为点，先调用递归函数尝试匹配s和去掉前两个字符的p，如果不能匹配就要用*去匹配掉s的第一个字母，然后继续循环，最后返回递归函数匹配s和去掉前两个字符的p](https://github.com/widmonstertony/Leetcode/blob/master/10.regular-expression-matching.java) | 有病吧，DP也可以，动态表达式很恐怖
 |11. Container With Most Water|[盛最多水的容器](https://leetcode.com/problems/container-with-most-water/)| [双指针从头和尾一直往中间移动，每次移动优先排除高度低的，并且更新答案](https://github.com/widmonstertony/Leetcode/blob/master/11.container-with-most-water.java) | 双指针
+|270. Closest Binary Search Tree Value
+|[最接近的二叉搜索树值](https://leetcode.com/problems/closest-binary-search-tree-value/)| [先看当前root值比搜索值大还是小，再根据大小选择左右遍历下去搜索并更新答案](https://github.com/widmonstertony/Leetcode/blob/master/270.closest-binary-search-tree-value.java) | 二分法，二叉搜索树
