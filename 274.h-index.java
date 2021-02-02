@@ -13,7 +13,7 @@ class Solution {
         for (int i = citations.length - 1; i >= 0; i--) {
             // 比当前论文被引次数多的所有论文数量
             int largerPaperCnt = citations.length - 1 - i;
-            // 如果比当前论文被引次数多的所有论文数量 大于等于 该论文被引次数
+            // 如果比当前论文被引用次数多的所有论文数量 大于等于 该论文被引用次数
             // 当前论文之后到尾部的所有论文数量即为H指数
             if (largerPaperCnt >= citations[i]) {
                 // 因为这些论文的引用数一定 大于等于 当前论文的被引次数
