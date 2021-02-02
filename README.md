@@ -16,3 +16,4 @@
 |11. Container With Most Water|[盛最多水的容器](https://leetcode.com/problems/container-with-most-water/)| [双指针从头和尾一直往中间移动，每次移动优先排除高度低的，并且更新答案](https://github.com/widmonstertony/Leetcode/blob/master/11.container-with-most-water.java) | 双指针
 |270. Closest Binary Search Tree Value|[最接近的二叉搜索树值](https://leetcode.com/problems/closest-binary-search-tree-value/)| [先看当前root值比搜索值大还是小，再根据大小选择左右遍历下去搜索并更新答案](https://github.com/widmonstertony/Leetcode/blob/master/270.closest-binary-search-tree-value.java) | 二分法，二叉搜索树
 |274. H-Index|[求H指数（高引用次数，总共有h篇论文分别被引用了至少h次）](https://leetcode.com/problems/h-index/description/)| [先从小到大排序，如果比当前论文被引用次数多的所有论文数量 大于等于 该论文被引次数，该数就是H指数](https://github.com/widmonstertony/Leetcode/blob/master/274.h-index.java) | 排序，恶心
+|275. H-Index II|[给一个排好序的数组，求H指数](https://leetcode.com/problems/h-index/description/)| [用找lower bound的二分法来找274的那个比当前论文被引用次数多的所有论文数量 大于等于 该论文被引次数的那个数](https://github.com/widmonstertony/Leetcode/blob/master/275.h-index-ii.java) | 二分法
