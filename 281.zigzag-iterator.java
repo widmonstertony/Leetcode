@@ -22,9 +22,8 @@ public class ZigzagIterator {
         while (!listItQueue.isEmpty() && hasNext()) {
             Iterator<Integer> currList = listItQueue.poll();
             if (currList.hasNext()) {
-                int currInt = currList.next();
                 listItQueue.add(currList);
-                return currInt;
+                return currList.next();
             }
             else {
                 continue;
