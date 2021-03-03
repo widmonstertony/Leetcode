@@ -1,3 +1,4 @@
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
@@ -10,20 +11,19 @@ import java.util.Queue;
 
 // @lc code=start
 public class ZigzagIterator {
-    Queue<List<Integer>> listQueue;
+    Queue<Iterator<Integer>> listItQueue;
     // 这个写法可以兼容不止两个list，多个list也可以
     public ZigzagIterator(List<Integer> v1, List<Integer> v2) {
-        listQueue = new LinkedList<>();
-        listQueue.add(v1);
-        listQueue.add(v2);
+        listItQueue = new LinkedList<>();
+        listItQueue.add(v1.iterator());
+        listItQueue.add(v2.iterator());
     }
     public int next() {
-        while (!listQueue.isEmpty() && hasNext()) {
-            List<Integer> currList = listQueue.poll();
-            if (!currList.isEmpty()) {
-                int currInt = currList.get(0);
-                currList.remove(0);
-                listQueue.add(currList);
+        while (!listItQueue.isEmpty() && hasNext()) {
+            Iterator<Integer> currList = listItQueue.poll();
+            if (currList.hasNext()) {
+                int currInt = currList.next();
+                listItQueue.add(currList);
                 return currInt;
             }
             else {
@@ -33,13 +33,13 @@ public class ZigzagIterator {
         return -1;
     }
     public boolean hasNext() {
-        while (!listQueue.isEmpty()) {
-            List<Integer> currList = listQueue.peek();
-            if (!currList.isEmpty()) {
+        while (!listItQueue.isEmpty()) {
+            Iterator<Integer> currList = listItQueue.peek();
+            if (currList.hasNext()) {
                 return true;
             }
             else {
-                listQueue.poll();
+                listItQueue.poll();
             }
         }
         return false;
