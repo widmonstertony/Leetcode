@@ -42,6 +42,40 @@ class Solution {
         }
         return resBuilder.toString();
     }
+    // public String removeDuplicateLetters(String s) {
+    //     if (s.length() == 0) {
+    //         return s;
+    //     }
+    //     int firstPos = 0;
+    //     int[] cntMap = new int[26];
+    //     for (char eachChar : s.toCharArray()) {
+    //         cntMap[eachChar - 'a']++;
+    //     }
+    //     for (int i = 0; i < s.length(); i++) {
+    //         char currChar = s.charAt(i);
+    //         // 找到第一个最左边的字符，必须要确保
+    //         // 从它开始的后缀字符串都至少有整个字符串里的每一个字符出现过一次
+    //         // 并且它是最小的那个字符
+    //         if (currChar < s.charAt(firstPos)) {
+    //             firstPos = i;
+    //         }
+    //         cntMap[currChar - 'a']--;
+    //         // 只要有一个字符是出现最后一次就结束循环
+    //         // 因为我们知道当前位置i之后就不符合条件了
+    //         // 这时候能确保firstPos一定是从0到i的最小的字符
+    //         // 并且从firstPos开始的后缀字符串都至少有整个字符串里的每一个字符出现过一次
+    //         if (cntMap[currChar - 'a'] == 0) {
+    //             break;
+    //         }
+    //     }
+    //     if (firstPos + 1 >= s.length()) {
+    //         return s.charAt(firstPos) + "";
+    //     }
+    //     // 把之后出现的firstPos的字符全部删除
+    //     String newStr = s.substring(firstPos + 1, s.length()).replaceAll(s.charAt(firstPos) + "", "");
+    //     // 迭代找下一个最小的字符
+    //     return s.charAt(firstPos) + removeDuplicateLetters(newStr);
+    // }
 }
 // @lc code=end
 
