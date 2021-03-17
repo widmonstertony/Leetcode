@@ -11,60 +11,59 @@ class NumArray {
     public NumArray(int[] nums) {
         n = nums.length;
         tree = new int[n * 2];
-        // 先给 tree 数组的后n个数字按顺序填上 nums 数字
-        for (int i = n; i < n * 2; i++) {
-            tree[i] = nums[i - n];
+        // 把所有原数组的数放进从n开始的新数组里作为leaf
+        for (int i = 0 ; i < n; i++) {
+            tree[n + i] = nums[i];
         }
-        // 左边的就是每一层的和，一直加到root
-        for (int i = n - 1; i > 0; i--) {
+        // 把所有两个leaf的sum的值放在原坐标除以2的位置
+        // 一直更新到最顶上的root
+        for (int i = n - 1; i >= 0; i--) {
+            // 这个确定了左节点坐标是偶数，右节点坐标是奇数
             tree[i] = tree[i * 2] + tree[i * 2 + 1];
         }
     }
     public void update(int i, int val) {
         // 由于 nums 数组在 tree 数组中是从位置n开始的，所以i也要加n
-        tree[i + n] = val;
         i += n;
-        // tree 数组中i位置的父结点是在 tree[i/2], 所以我们要更新 tree[i/2]
-        // 那么要更新父结点值，就要知道左右子结点值
+        tree[i] = val;
         while (i > 0) {
-            // tree[i / 2] = tree[i] + tree[i ^ 1];
-            int left = i;
-            int right = i;
-            // 若i是偶数，则说明其是左子结点
+            int left = i, right = i;
+            // 如果当前是偶数，也就是左节点
+            // 那么我们需要设置右节点的坐标为左节点+1
             if (i % 2 == 0) {
                 right = i + 1;
-            } 
-            // 若i是奇数，则说明其是右子结点
+            }
+            // 否则需要设置左节点的坐标
             else {
                 left = i - 1;
             }
-            tree[i / 2] = tree[left] + tree[right];
+            // 把左右节点的sum更新到他们的父结点，也就是除以2的坐标
             i /= 2;
+            tree[i] = tree[left] + tree[right];
         }
     }
     public int sumRange(int i, int j) {
         int sum = 0;
-        // 先进行坐标变换，i、j加n,然后进行累加
-        for (i += n, j += n; i <= j; i /= 2, j /= 2) {
-            // 若i是左子结点
-            // 那么跟其成对儿出现的右边的结点就在要求的区间里
-            // 则此时直接加上父结点值即可
-            // 若i是右子结点，那么只需要加上结点i本身即可
-            // 若j是右子结点，那么跟其成对儿出现的左边的结点就在要求的区间里
-            // 则此时直接加上父结点值即可
-            
-            // 若i是奇数，则说明其是右子结点，则加上 tree[i] 本身
-            // 然后i自增1
+        i += n;
+        j += n;
+        while (i <= j) {
+            // 如果当前i是右节点
+            // 那么就需要把当前节点直接加进sum，因为不能包括左节点，范围从i开始往右
+            // 加完之后i往右移一位，也就是往j更靠近一点，确保能加上中间的sum
+            // 否则的话如果i是左节点就不需要做任何操作，因为之后i会移到父结点，到时候直接加上父结点就好了
+            // 父结点就会包括当前i和i的右边那个节点的数值总和
             if (i % 2 == 1) {
                 sum += tree[i];
                 i++;
             }
-            // 若j是偶数，则说明其是左子结点
-            // 则加上 tree[j] 本身，然后j自减1
+            // j也是同理，只是j需要检查的是j是否是左节点，因为范围到j结束，不能包括右节点
+            // 如果是偶数，说明j是左节点，直接把j加进去，j往左移1位
             if (j % 2 == 0) {
                 sum += tree[j];
                 j--;
-            } 
+            }
+            i /= 2;
+            j /= 2;
         }
         return sum;
     }
