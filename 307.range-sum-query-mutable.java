@@ -8,6 +8,7 @@
 class NumArray {
     int[] tree;
     int n;
+    // Segment Tree解法
     public NumArray(int[] nums) {
         n = nums.length;
         tree = new int[n * 2];
