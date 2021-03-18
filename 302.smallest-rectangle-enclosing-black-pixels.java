@@ -10,19 +10,19 @@ class Solution {
     public int minArea(char[][] image, int x, int y) {
         int m = image.length, n = image[0].length;
         // find top in the column array within [0, x)
-        // 上边界是某个行数，范围肯定在 [0, x]
-        int top = binarySearch(image, 0, x, 0, n, true, true);
+        // 上边界是某个行数，范围肯定在 [0, x)
+        int top = binarySearch(image, 0, x - 1, 0, n, true, true);
         // find bottom in the column array within [x + 1, m)
-        int bottom = binarySearch(image, x + 1, m, 0, n, true, false);
+        int bottom = binarySearch(image, x + 1, m - 1, 0, n, true, false);
         // find left in the row array within [0, y)
-        int left = binarySearch(image, 0, y, top, bottom, false, true);
+        int left = binarySearch(image, 0, y - 1, top, bottom, false, true);
         // find right in the row array within [y + 1, n)
-        int right = binarySearch(image, y + 1, n, top, bottom, false, false);
+        int right = binarySearch(image, y + 1, n - 1, top, bottom, false, false);
         return (bottom - top) * (right - left);
     }
 
     private int binarySearch(char[][] image, int left, int right, int low, int high, boolean isHorizontal, boolean isLowerBound) {
-        while (left < right) {
+        while (left <= right) {
             int currIdx = low, mid = left + (right - left) / 2;
             // 能成为边界的条件是该行中至少有一个点是1
             // 列数从low开始遍历，直到找到为1的点，或者到达越界位置high
@@ -34,12 +34,12 @@ class Solution {
             // 如果当前行找到了1，应该再往下找，把上半部分抛弃
             // 而上边界找到了1，是继续往上找，把下半部分抛弃
             // 所以加一个isLowerBound，来翻转找的顺序
-            if (currIdx < high == isLowerBound) {
-                right = mid;
+            if (currIdx < high != isLowerBound) {
+                left = mid + 1;
             }
             // 越界的话，说明当前行/列没有1，移动相应bound
             else {
-                left = mid + 1;
+                right = mid - 1;
             }
         }
         return left;
