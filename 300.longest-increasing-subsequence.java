@@ -31,15 +31,15 @@ class Solution {
     }
     // public int lengthOfLIS(int[] nums) {
     //     // O(nlogn) 解法 二分查找
-    //     List<Integer> dp = new ArrayList<>();
+    //     List<Integer> stack = new ArrayList<>();
     //     //遍历原数组
-    //     //对于每一个遍历到的数字, 用二分查找法在dp数组找第一个不小于它的数字
+    //     //对于每一个遍历到的数字, 用二分查找法在stack数组找第一个不小于它的数字
     //     for (int num: nums) {
     //         // O(nlogn) 二分搜索
-    //         int left = 0, right = dp.size();
+    //         int left = 0, right = stack.size();
     //         while (left < right) {
     //             int mid = left + (right - left) / 2;
-    //             if (dp.get(mid) < num) {
+    //             if (stack.get(mid) < num) {
     //                 left = mid + 1;
     //             }
     //             else {
@@ -47,16 +47,16 @@ class Solution {
     //             }
     //         }
     //         // 如果找到了，则用当前数字代替第一个大于它的数字
-    //         if (left < dp.size()) {
-    //             dp.set(left, num);
+    //         if (left < stack.size()) {
+    //             stack.set(left, num);
     //         }
     //         // 如果这个数字不存在，也就是当前数字是dp数组里最大的数字
-    //         // 那么直接在dp数组后面加上当前数字
+    //         // 那么直接在stack数组后面加上当前数字
     //         else {
-    //             dp.add(num);
+    //             stack.add(num);
     //         }
     //     }
-    //     return dp.size();
+    //     return stack.size();
     // }
 }
 // @lc code=end
