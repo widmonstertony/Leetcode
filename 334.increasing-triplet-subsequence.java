@@ -64,6 +64,7 @@ class Solution {
     // public boolean increasingTriplet(int[] nums) {
     //     // brute force
     //     // dp[i] 代表nums[i]前面所有小于nums[i]的数量
+    //      这个解法用来解不止3个，而是n个，最长递增子序列
     //     int[] dp = new int[nums.length];
     //     for (int i = 0; i < nums.length; i++) {
     //         for (int j = 0; j < i; j++) {
