@@ -35,31 +35,52 @@
  */
 class Solution {
     public int depthSumInverse(List<NestedInteger> nestedList) {
-        int currSum = 0;
-        // 把同一个level和那个level的总数存进HashMap
-        Map<Integer, Integer> levelMap = new HashMap<>();
-        for (NestedInteger currInteger: nestedList) {
-            getDepth(currInteger, levelMap, 0);
-        }
-        int maxLevel = Integer.MIN_VALUE;
-        for (int level : levelMap.keySet()) {
-            maxLevel = Math.max(level, maxLevel);
-        }
-        for (int level : levelMap.keySet()) {
-            currSum += (maxLevel + 1 - level) * levelMap.get(level);
-        }
-        return currSum;
-    }
-    private void getDepth(NestedInteger currInteger, Map<Integer, Integer> levelMap, int currLevel) {
-        if (currInteger.isInteger()) {
-            levelMap.put(currLevel, levelMap.getOrDefault(currLevel, 0) + currInteger.getInteger());
-        }
-        else {
-            for (NestedInteger nextInteger: currInteger.getList()) {
-                getDepth(nextInteger, levelMap, currLevel + 1);
+        int unweighted = 0, weighted = 0;
+        while (!nestedList.isEmpty()) {
+            List<NestedInteger> nextLevel = new ArrayList<NestedInteger>();
+            for (NestedInteger currNestInt : nestedList) {
+                if (currNestInt.isInteger()) {
+                    unweighted += currNestInt.getInteger();
+                }
+                else {
+                    for (NestedInteger nextNestInt: currNestInt.getList()) {
+                        nextLevel.add(nextNestInt);
+                    }
+                }
             }
+            // 将 unweighted 加入 weighted 中时，相当于上一层的数字和又被加了一次
+            weighted += unweighted;
+            nestedList = nextLevel;
         }
+        return weighted;
     }
+    // 用hashmap把每一层的层数和总和记录下来
+    // public int depthSumInverse(List<NestedInteger> nestedList) {
+    //     int currSum = 0;
+    //     // 把同一个level和那个level的总数存进HashMap
+    //     Map<Integer, Integer> levelMap = new HashMap<>();
+    //     for (NestedInteger currInteger: nestedList) {
+    //         getDepth(currInteger, levelMap, 0);
+    //     }
+    //     int maxLevel = Integer.MIN_VALUE;
+    //     for (int level : levelMap.keySet()) {
+    //         maxLevel = Math.max(level, maxLevel);
+    //     }
+    //     for (int level : levelMap.keySet()) {
+    //         currSum += (maxLevel + 1 - level) * levelMap.get(level);
+    //     }
+    //     return currSum;
+    // }
+    // private void getDepth(NestedInteger currInteger, Map<Integer, Integer> levelMap, int currLevel) {
+    //     if (currInteger.isInteger()) {
+    //         levelMap.put(currLevel, levelMap.getOrDefault(currLevel, 0) + currInteger.getInteger());
+    //     }
+    //     else {
+    //         for (NestedInteger nextInteger: currInteger.getList()) {
+    //             getDepth(nextInteger, levelMap, currLevel + 1);
+    //         }
+    //     }
+    // }
 }
 // @lc code=end
 
