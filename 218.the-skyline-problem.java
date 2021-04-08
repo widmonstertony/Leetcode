@@ -11,16 +11,10 @@ class Solution {
         List<List<Integer>> heights = new ArrayList<>();
         for (int[] building: buildings) {
             // 建立左边界和负高度的 pair
-            List<Integer> start = new ArrayList<>();
-            start.add(building[0]);
             // 将左边界的高度存为负数
-            start.add(-building[2]);
-            heights.add(start);
+            heights.add(new ArrayList<Integer>() {{add(building[0]); add(-building[2]); }});
             // 建立右边界和高度的 pair
-            List<Integer> end = new ArrayList<>();
-            end.add(building[1]);
-            end.add(building[2]);
-            heights.add(end);
+            heights.add(new ArrayList<Integer>() {{add(building[1]); add(building[2]); }});
         }
         
         Collections.sort(heights, (a, b) -> {
