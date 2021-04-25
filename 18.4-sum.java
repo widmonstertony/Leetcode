@@ -20,6 +20,11 @@ class Solution {
         if (start == nums.length) {
             return resList;
         }
+        // 优化，如果k个当前最小的数都比target大，或者如果k个当前最大的数都比target小
+        // 说明当前数组不可能组成target，直接返回空
+        if (nums[start] * k > target || target > nums[nums.length - 1] * k) {
+            return resList;
+        }
         if (k == 2) {
             return twoSum(nums, target, start);
         }
