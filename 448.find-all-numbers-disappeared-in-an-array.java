@@ -8,16 +8,12 @@
 class Solution {
     public List<Integer> findDisappearedNumbers(int[] nums) {
         for(int i = 0; i < nums.length; i++) {
-            int currNum = nums[i];
+            int correctIdx = nums[i] - 1;
             // 如果当前坐标和数字不匹配，则一直交换到正确位置
-            while (i != currNum - 1) {
-                swap(nums, currNum - 1, i);
-                // 更新当前位置新的数
-                currNum = nums[i];
-                // 如果下一个交换的是一样的数，停止
-                if (nums[i] == nums[currNum - 1]) {
-                    break;
-                }
+            while (correctIdx >= 0 && correctIdx < nums.length &&
+                nums[i] != nums[correctIdx]) {
+                swap(nums, i, correctIdx);
+                correctIdx = nums[i] - 1;
             }
         }
         List<Integer> resList = new ArrayList<>();
