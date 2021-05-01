@@ -19,8 +19,9 @@ class Solution {
         for (int i = 0; i < height.length; i++) {
 
             // 一直处理可能有坑的部分
-            while (!decreBarHeightSt.isEmpty() && height[i] >= height[decreBarHeightSt.peek()]) {
-                // 一个水坑的中间坑的坐标
+            // 也就是当前高度大于stack里的最低点
+            while (!decreBarHeightSt.isEmpty() && height[i] > height[decreBarHeightSt.peek()]) {
+                // 一个水坑的中间坑的坐标，也就是stack的最低点
                 int midBarIdx = decreBarHeightSt.pop();
 
                 // 如果此时没有下一个高的bar，则不能形成坑
@@ -32,7 +33,7 @@ class Solution {
                 int leftBarIdx = decreBarHeightSt.peek();
                 int rightBarIdx = i;
 
-                // 左右边界间的距离
+                // 左右边界中间的距离，需要多减1取中间部分
                 int currAreaWidth = rightBarIdx - 1 - leftBarIdx;
                 // 左右边界，取其中较小的值为装水的边界，然后此高度减去水槽最低点的高度，就是当前水坑的高度
                 int currAreaHeight = Math.min(height[rightBarIdx], height[leftBarIdx]) - height[midBarIdx];
