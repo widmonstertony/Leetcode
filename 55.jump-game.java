@@ -19,6 +19,10 @@ class Solution {
                 if (i > dp[i - 1]) {
                     return false;
                 }
+                // 如果已经到终点了，直接返回true
+                if (dp[i - 1] >= nums.length - 1) {
+                    return true;
+                }
                 // 当前位置的最远距离，和上一个位置的最远距离选最大值
                 dp[i] = Math.max(dp[i - 1], nums[i] + i);
             }
