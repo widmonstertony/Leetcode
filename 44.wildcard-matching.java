@@ -10,19 +10,33 @@ class Solution {
         // dp[i][j] 代表s的前i位和p的前j位是否可以匹配
         boolean[][] dp = new boolean[s.length() + 1][p.length() + 1];
         // dp[0][0] 代表s为空和p为空，属于匹配成功
-        dp[0][0] = true;
-        for (int j = 1; j <= p.length(); j++) {
-            if (p.charAt(j - 1) == '*') {
-                dp[0][j] = dp[0][j - 1];
-            }
-        }
-        for (int i = 1; i <= s.length(); i++) {
-            for (int j = 1; j <= p.length(); j++) {
-                if (p.charAt(j - 1) == '*') {
-                    dp[i][j] = dp[i - 1][j] || dp[i][j - 1];
+        for (int i = 0; i <= s.length(); i++) {
+            for (int j = 0; j <= p.length(); j++) {
+                // dp[0][0] 代表s为空和p为空，属于匹配成功
+                if (i == 0 && j == 0) {
+                    dp[i][j] = true;
+                }
+                // 如果p为空，则无法匹配
+                else if (j == 0) {
+                    dp[i][j] = false;
+                }
+                else if (p.charAt(j - 1) == '*') {
+                    // 如果s为空，则当前答案等于p上一个匹配的结果
+                    if (i == 0) {
+                        dp[0][j] = dp[0][j - 1];
+                    }
+                    // 当前*号可以匹配一个，或者*匹配空字符
+                    else {
+                        dp[i][j] = dp[i - 1][j] || dp[i][j - 1];
+                    }
                 }
                 else {
-                    if (s.charAt(i - 1) == p.charAt(j - 1) || p.charAt(j - 1) == '?') {
+                    // 如果i为空，代表s为空，而p不为空，也不是*，匹配失败
+                    if (i == 0) {
+                        dp[0][j] = false;
+                    }
+                    // 如果p当前的一个字符可以和s的一个字符匹配
+                    else if (s.charAt(i - 1) == p.charAt(j - 1) || p.charAt(j - 1) == '?') {
                         dp[i][j] = dp[i - 1][j - 1];
                     }
                     else {
