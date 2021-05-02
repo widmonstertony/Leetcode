@@ -37,6 +37,7 @@ class Solution {
                     currArea = newHeights[prevHeightStartIdx] * i;
                 }
                 // 否则面积就是取出的元素高度乘以（下一个要取出的元素坐标之后到i的距离）
+                // 注意这里要用下一个stack里的top元素，因为这个元素是比当前高度更低的，在它之后的一定不会比当前高度低
                 else {
                     currArea = newHeights[prevHeightStartIdx] * (i - 1 - increSt.peek());
                 }
