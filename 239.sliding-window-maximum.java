@@ -20,7 +20,9 @@ class Solution {
             if (!idxDeque.isEmpty() && idxDeque.peekFirst() == i - k) {
                 idxDeque.pollFirst();
             }
-            // 比较队尾元素和将要进来的值，如果小的话就都移除
+            // 比较队尾元素和将要进来的值
+            // 如果列队里的数小的话就都移除，因为这些都一定不会成为最大值
+            // 因为当前数字大于它们，所以当前数字前面小于它的都没有存在的意义
             while (!idxDeque.isEmpty() && nums[idxDeque.peekLast()] < nums[i]) {
                 idxDeque.pollLast();
             }
