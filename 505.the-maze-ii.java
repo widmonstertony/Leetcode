@@ -50,6 +50,9 @@ class Solution {
                     newY = nextY;
                     currDis++;
                 }
+                if (shortestDis[newX][newY] < currDis) {
+                    continue;
+                }
                 resPQ.offer(new int[]{newX, newY, currDis});
             }
         }
