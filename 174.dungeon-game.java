@@ -22,7 +22,10 @@ class Solution {
                 // 和1比较，如果小于1，说明当前dp是正数，加血
                 // 则当前血量只需要为1就好了，因为当前的数值能加血加到足够走完剩下的
                 // 因为生命为零游戏就结束了
-                dp[i][j] = Math.max(1, Math.min(dp[i + 1][j], dp[i][j + 1]) - dungeon[i][j]);
+                dp[i][j] = Math.min(dp[i + 1][j], dp[i][j + 1]) - dungeon[i][j];
+                if (dp[i][j] <= 0) {
+                    dp[i][j] = 1;
+                }
             }
         }
         return dp[0][0];
