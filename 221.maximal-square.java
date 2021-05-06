@@ -10,7 +10,7 @@ class Solution {
         if (matrix == null || matrix.length == 0 || matrix[0].length == 0) {
             return 0;
         }
-        // dp[i][j] 表示从左顶上角到达 (i, j) 位置所能组成的最大正方形的边长
+        // dp[i][j] 表示从左顶上角到达(i, j)位置并一定要包括(i, j)位置所能组成的最大正方形的边长
         int[][] dp = new int[matrix.length][matrix[0].length];
         int maxRectSideLength = 0;
         for (int i = 0; i < matrix.length; i++) {
