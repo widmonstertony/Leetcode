@@ -8,6 +8,7 @@
 class Solution {
     public List<List<Integer>> allPathsSourceTarget(int[][] graph) {
         List<List<Integer>> resList = new ArrayList();
+        // 因为题目讲了没有cycle，所以这个visited其实不需要
         boolean[] visited = new boolean[graph.length];
         dfsAllPath(visited, resList, new ArrayList(), graph, 0);
         return resList;
