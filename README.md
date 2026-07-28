@@ -1,5 +1,1038 @@
-# Leetcode
-## this is the repo for me to practice leetcode and store the solutions with my thoughts
+# LeetCode Python 重刷手册
+
+> 根据仓库里过去的 Java 解法、题解笔记和提交历史整理。目标不是背每一道题，而是背少量稳定骨架，看到题目后能迅速归类并写出第一版。
+
+## 目录
+
+- [仓库复盘](#仓库复盘)
+- [先选模板：题目触发词](#先选模板题目触发词)
+- [四大重点背诵卡](#四大重点背诵卡)
+- [Java 到 Python 的肌肉记忆](#java-到-python-的肌肉记忆)
+- [核心 Python 模板](#核心-python-模板)
+- [进阶模板](#进阶但应该会默写的模板)
+- [Python 重刷路线](#python-重刷路线)
+- [提交前检查](#提交前检查)
+- [旧 Java 题解笔记](#旧-java-题解笔记)
+
+## 怎么使用这份 README
+
+1. 先读「选模板」表，只判断题型，不急着写代码。
+2. 不看旧 Java 解答，默写对应 Python 骨架。
+3. 做完后只记录三件事：`触发信号 / 核心不变量 / 本次错误`。
+4. 第二天重写错题；一周后再重写一次。能在 10 分钟内写出骨架才算掌握。
+
+现有解答继续保留扁平的 `题号.题名.语言` 命名，不移动文件，避免破坏旧链接和提交历史。README 负责按思路组织它们。
+
+## 仓库复盘
+
+整理时仓库中共有：
+
+| 内容 | 数量 |
+| --- | ---: |
+| Java 解答 | 367 |
+| Python 解答 | 5 |
+| SQL 解答 | 2 |
+| Java 代码量 | 约 20,083 行 |
+| 旧 README 题解笔记 | 100 道 |
+
+Java 文件中的关键词粗略统计如下；同一文件可能计入多个分类：
+
+| 习惯或结构 | 涉及文件数 | 说明 |
+| --- | ---: | --- |
+| `List` / `ArrayList` | 109 | 喜欢显式保存路径、层和结果 |
+| `left` + `right` | 84 | 双指针和二分是最稳定的主线之一 |
+| `Map` / `HashMap` | 52 | 计数、索引、映射和去重很多 |
+| `dp[...]` | 46 | 会先写清状态含义，再推转移 |
+| `Queue` / `Deque` | 38 | 层序遍历和图搜索较多 |
+| 排序 | 33 | 常用“先排序，再双指针/去重/贪心” |
+| DFS | 28 | 树、网格、图和回溯共用递归思路 |
+| Stack | 28 | 括号、单调栈、字符串消除 |
+| Set | 25 | 去重、访问记录、O(1) 查询 |
+| Heap | 17 | Top K、合并、最短路 |
+| Union-Find | 13 | 连通性题有专门的一组练习 |
+
+### 当前 Python 起点
+
+现在已有的 Python 文件正好暴露了自然的起步路线：
+
+- `1`、`49`、`128`：哈希、分组和 set。
+- `347`：哈希计数接 Heap。
+- `29`：还是空骨架，属于位运算专题，可以等核心模板恢复后再做。
+
+所以第一组建议先完成「哈希 → 滑动窗口 → 双指针」，再进入位运算；不用按题号强行推进。
+
+### 我以前写 Java 的规律
+
+- **先定义状态，再推进状态。** 常见变量是 `left/right`、`curr`、`visited`、`resList` 和 `helper`。这套习惯很好，Python 中只需缩短样板代码，不要丢掉不变量。
+- **喜欢把复杂部分拆成 helper。** 二分、DFS、回溯、partition 等通常单独写函数；Python 继续用内嵌函数，并用闭包保存 `res`、`path`、`ans`。
+- **边界检查放得早。** `null`、空数组、越界和 visited 通常在函数开头处理。Python 也保持“先 base case，再主逻辑”。
+- **按专题成组刷题。** 提交历史里，2020 年 8 月集中练 DP 和回溯，9–10 月集中练数据结构、栈和图，之后又连续练双指针、二分、树、并查集、迷宫和设计题。Python 重刷也应该按模板成组，而不是按题号。
+- **会保留第二种解法。** 很多 Java 文件同时留有 DFS/BFS、暴力/优化或自己的第一版。Python 重刷时建议保留一句对比，不要长期保留整段失效代码。
+- **解法说明偏“指针怎么走”。** 这是优点。再补一句“为什么不会漏答案”，就会从记代码升级成记证明。
+
+### Python 重刷时要刻意改掉的成本
+
+- `HashMap`、`HashSet`、`Queue` 不再手写样板，直接用 `dict/set/deque`。
+- 栈直接用 `list.append/pop`；队列一定用 `deque.popleft()`，不要用 `list.pop(0)`。
+- 最大堆通常把值取负后放进 `heapq`。
+- 计数优先想 `Counter/defaultdict(int)`；分组优先想 `defaultdict(list)`。
+- 坐标和复合 key 用 tuple，例如 `(row, col)`、`tuple(counts)`。
+- 字符串重复拼接改成 list 收集后 `''.join(parts)`。
+- Python 递归深度有限。长链图或大网格优先写迭代 DFS/BFS；树和回溯通常仍可递归。
+- 不要使用可变默认参数，例如 `def dfs(path=[])`。
+
+## 先选模板：题目触发词
+
+| 看到的信号 | 第一反应 | 记忆句 |
+| --- | --- | --- |
+| 查找配对、计数、分组、最近位置 | 哈希表 | **边扫边记，先查后放** |
+| 连续子数组/子串，右边加入、左边移出 | 滑动窗口 | **右扩、违规左缩、每轮更新** |
+| 有序数组、两数/三数、首尾取舍 | 双指针 | **根据单调性排除一边** |
+| 有序；或答案越大越容易满足 | 二分 | **先定真假边界，再找第一个真** |
+| 最近更大/更小、柱形图、括号 | 栈/单调栈 | **当前元素负责结算栈顶** |
+| 链表删改、倒数第 k 个、区间反转 | dummy + 快慢指针 | **头会变就加 dummy** |
+| 树的路径、深度、子树信息 | DFS | **向下拿答案，向上交信息** |
+| 最少步数、按层、无权图 | BFS | **第一次到达就是最短层数** |
+| 岛屿、连通块、网格扩散 | DFS/BFS | **每个点只进一次容器** |
+| 枚举所有方案、排列、组合 | 回溯 | **选择、递归、撤销** |
+| 最优值/方案数 + 重叠子问题 | DP | **状态、初值、转移、顺序、答案** |
+| Top K、每次取当前最小/最大 | Heap | **堆顶永远是下一位候选** |
+| 有依赖先后关系 | 拓扑排序 | **入度归零才入队** |
+| 动态合并集合、判断连通 | Union-Find | **找到根，再合并根** |
+| 带非负权最短路 | Dijkstra | **小根堆弹出当前最短距离** |
+
+### 一张更短的决策卡
+
+```text
+连续区间 -> 滑动窗口 / 前缀和
+有序或单调答案 -> 双指针 / 二分
+所有方案 -> 回溯
+最优值或方案数 -> DP
+点与边 -> DFS / BFS / 拓扑 / 并查集 / Dijkstra
+局部最近更大更小 -> 单调栈
+反复取最值 -> Heap
+```
+
+## 四大重点背诵卡
+
+根据以前的代码和现在的记忆，优先级最高的是：**二分边界、Stack、Priority Queue、DP**。先把这四张卡默写熟，再扩展其他专题。
+
+### A. 二分：只背一种边界协议
+
+统一使用左闭右开区间 `[left, right)`：
+
+```text
+初始化：left = 0, right = len(nums)
+循环：  while left < right
+中点：  mid = left + (right - left) // 2
+左边不要：left = mid + 1
+右边保留：right = mid
+结束：  left == right，就是答案位置
+```
+
+`lower_bound` 和 `upper_bound` 只有一个符号不同：
+
+```python
+def lower_bound(nums: list[int], target: int) -> int:
+    """第一个 >= target 的位置。"""
+    left, right = 0, len(nums)
+    while left < right:
+        mid = left + (right - left) // 2
+        if nums[mid] < target:
+            left = mid + 1
+        else:
+            right = mid
+    return left
+
+
+def upper_bound(nums: list[int], target: int) -> int:
+    """第一个 > target 的位置。"""
+    left, right = 0, len(nums)
+    while left < right:
+        mid = left + (right - left) // 2
+        if nums[mid] <= target:  # 唯一变化：< 变成 <=
+            left = mid + 1
+        else:
+            right = mid
+    return left
+```
+
+边界换算表：
+
+| 想找什么 | 写法 |
+| --- | --- |
+| 第一个 `>= target` | `lower_bound(nums, target)` / `bisect_left(nums, target)` |
+| 第一个 `> target` | `upper_bound(nums, target)` / `bisect_right(nums, target)` |
+| 最后一个 `< target` | `lower_bound(nums, target) - 1` |
+| 最后一个 `<= target` | `upper_bound(nums, target) - 1` |
+| `target` 出现次数 | `upper_bound(nums, target) - lower_bound(nums, target)` |
+| `target` 的范围 | `[lower_bound(nums, target), upper_bound(nums, target))` |
+
+背诵句：
+
+```text
+lower：小于 target 的扔掉。
+upper：小于等于 target 的扔掉。
+```
+
+必须记住：
+
+- `right = len(nums)`，不是 `len(nums) - 1`。
+- 因为是左闭右开，所以保留右半边时写 `right = mid`。
+- 返回值允许等于 `len(nums)`，代表所有元素都比 target 小。
+- Python 实战直接用 `bisect_left(nums, target)` 和 `bisect_right(nums, target)`；手写版用于面试解释边界。
+- 旋转数组、峰值题虽然也用二分，但不是 lower bound；它们仍然遵守“每轮根据单调性安全排除一半”。
+
+答案二分也统一成同一件事。若答案空间呈现：
+
+```text
+False False False True True True
+```
+
+就找第一个 `True`：
+
+```python
+def first_feasible(left: int, right: int) -> int:
+    """在整数半开区间 [left, right) 找第一个 True；不存在则返回 right。"""
+    while left < right:
+        mid = left + (right - left) // 2
+        if feasible(mid):
+            right = mid
+        else:
+            left = mid + 1
+    return left
+```
+
+写之前先回答：**`feasible(x)` 是否单调？我要第一个 True，还是最后一个 False？**
+
+### B. Stack：栈里放的都是“还没结算的人”
+
+先分清三种容器：
+
+| 容器 | 下一个取谁 | Python |
+| --- | --- | --- |
+| Stack | 最近放进去的 | `list.append()` / `list.pop()` |
+| Queue | 最早放进去的 | `deque.append()` / `deque.popleft()` |
+| Priority Queue | 优先级最小的 | `heapq.heappush()` / `heapq.heappop()` |
+
+普通栈处理嵌套和匹配；单调栈处理“最近更大/更小”。需要距离或坐标时，栈里存**下标**，不要只存值。
+
+单调栈四问：
+
+```text
+1. 栈里存值还是下标？
+2. 栈从底到顶递增还是递减？
+3. 当前元素满足什么条件时 pop？
+4. 当前元素是在回答自己，还是在结算被 pop 的元素？
+```
+
+最常见的两个模板：
+
+| 问题 | 栈的状态 | 当前值触发的 pop 条件 | 谁得到答案 |
+| --- | --- | --- | --- |
+| 下一个更大 | 单调递减 | `stack_top < curr` | 被 pop 的旧元素 |
+| 下一个更小 | 单调递增 | `stack_top > curr` | 被 pop 的旧元素 |
+
+```python
+def next_greater(nums: list[int]) -> list[int]:
+    ans = [-1] * len(nums)
+    stack = []  # 下标；对应值从底到顶单调递减
+
+    for i, num in enumerate(nums):
+        while stack and nums[stack[-1]] < num:
+            prev = stack.pop()
+            ans[prev] = num  # 当前 num 结算 prev
+        stack.append(i)
+
+    return ans
+```
+
+若题目问“前一个更大/更小”，则先把不合法的栈顶 pop 掉，**剩下的栈顶回答当前元素**。
+
+等号不是固定套路，要看“谁回答谁”：
+
+- 找**下一个严格更大**时，只有 `stack_top < curr` 才 pop；相等值不能互相回答。
+- 找**前一个严格更大**时，要先 pop 掉 `stack_top <= curr`，剩下的栈顶才能严格大于当前值。
+- 柱形图、重复数字题最容易错在 `<` 和 `<=`；先写清严格/非严格关系，再决定相等值由左边还是右边结算。
+
+### C. Priority Queue：先说清堆顶代表谁
+
+Python 的 `heapq` 默认是小根堆：
+
+```python
+heap = [3, 1, 5]
+heapq.heapify(heap)
+
+heapq.heappush(heap, 2)
+smallest = heap[0]          # 只看，不删除
+smallest = heapq.heappop(heap)
+```
+
+最大堆用负数：
+
+```python
+max_heap = []
+for value in nums:
+    heapq.heappush(max_heap, -value)
+largest = -heapq.heappop(max_heap)
+```
+
+Top K 只背这个方向：
+
+| 目标 | 维护什么堆 | 堆顶含义 |
+| --- | --- | --- |
+| 最大的 K 个 | 大小为 K 的小根堆 | 第 K 大 |
+| 最小的 K 个 | 大小为 K 的大根堆 | 第 K 小 |
+| 每次取全局最小候选 | 小根堆放所有候选 | 下一位要处理的人 |
+
+```python
+# 最大的 k 个：小根堆只留下 k 个大值
+heap = []
+for num in nums:
+    heapq.heappush(heap, num)
+    if len(heap) > k:
+        heapq.heappop(heap)
+
+kth_largest = heap[0]
+```
+
+多个字段按 tuple 从左到右比较：
+
+```python
+heapq.heappush(heap, (distance, node))
+distance, node = heapq.heappop(heap)
+```
+
+必须记住：
+
+- Heap 只保证 `heap[0]` 最小，不保证整个 list 有序。
+- 改了优先级后不能原地等它自动调整；通常重新 push 新状态。
+- Dijkstra 等场景允许旧状态留在堆里，pop 后用 `if curr_dist != dist[node]: continue` 跳过。
+- 两个 tuple 的第一项相等时，Python 会继续比较下一项；若下一项对象不可比较，加入唯一序号作为 tie-breaker。
+- 中位数数据流使用两个堆：左边最大堆、右边最小堆，并保持长度差不超过 1。
+
+### D. DP：不背答案，背五个问题
+
+DP 最难的通常不是公式，而是**状态定义和计算顺序**。每题先写：
+
+```text
+1. State：dp[...] 精确表示什么？
+2. Choice：最后一步有哪些选择？
+3. Transition：选择后从哪个旧状态转移？
+4. Base：最小问题和不可能状态如何初始化？
+5. Order：依赖状态必须先算，答案最后在哪里？
+```
+
+常见题型映射：
+
+| 信号 | 常见状态 | 仓库代表题 |
+| --- | --- | --- |
+| 选或不选、不能相邻 | `dp[i]` / 前两个状态 | 198、213 |
+| 网格路径 | `dp[row][col]` | 62、64、120 |
+| 金额、容量、目标和 | `dp[amount]` | 322、494、518 |
+| 子序列 | `dp[i]` 或 `dp[i][j]` | 300、516 |
+| 区间合并/最后戳谁 | `dp[left][right]` | 312、375 |
+| 持有/未持有等阶段 | `dp[day][state]` | 121、123、188、309 |
+
+背包的遍历方向：
+
+```text
+0/1 背包：每个物品最多一次 -> 容量倒序
+完全背包：每个物品可重复   -> 容量正序
+```
+
+方案数还要区分：
+
+```text
+求组合数：先遍历物品，再遍历容量。
+求排列数：先遍历容量，再遍历物品。
+```
+
+DP 最常见的四个错误：
+
+- `dp[i]` 的含义在推导中途变了。
+- 最小值问题没有把不可能状态初始化成 `inf`，或最大值问题没有用 `-inf`。
+- 原地压缩成一维后，遍历方向让本轮的新状态污染了旧状态。
+- 只返回 `dp[-1]`，但题目真正答案是 `max(dp)`、`sum(dp)` 或某个状态集合。
+
+压缩空间放在最后：先写对二维或完整数组，确认每个状态只依赖上一层后，再压缩。
+
+## Java 到 Python 的肌肉记忆
+
+| Java | Python |
+| --- | --- |
+| `HashMap<K, V>` | `{}` / `defaultdict` / `Counter` |
+| `HashSet<T>` | `set()` |
+| `ArrayList<T>` | `[]` |
+| `Queue<T>` / `LinkedList<T>` | `deque()` |
+| `Stack<T>` | `list` 的 `append()` / `pop()` |
+| `PriorityQueue<T>` | `heapq`，默认小根堆 |
+| `Arrays.sort(nums)` | `nums.sort()` |
+| `Collections.sort(list, cmp)` | `list.sort(key=...)` |
+| `map.getOrDefault(x, 0)` | `map.get(x, 0)` |
+| `map.containsKey(x)` | `x in map` |
+| `Integer.MAX_VALUE` | `inf` |
+| `StringBuilder` | list + `''.join(parts)` |
+| `Pair<Integer, Integer>` | `(x, y)` |
+| `int[][]` | `list[list[int]]` |
+
+常用 import：
+
+```python
+from bisect import bisect_left, bisect_right
+from collections import Counter, defaultdict, deque
+from functools import cache
+from math import inf
+import heapq
+```
+
+统一命名：
+
+```text
+left, right    窗口或左右边界
+slow, fast     同向指针或链表
+curr           当前节点/当前值
+res            最终结果集合
+ans            单个最优值或计数
+path           当前回溯路径
+seen           访问过的点
+graph          邻接表
+indegree       入度
+```
+
+## 核心 Python 模板
+
+模板不要逐字符死背。每个模板只背「不变量 + 三五行骨架」。
+
+### 1. 哈希表：边扫边记
+
+对应旧题：[1. Two Sum](1.two-sum.java)、[49. Group Anagrams](49.group-anagrams.py)、[128. Longest Consecutive Sequence](128.longest-consecutive-sequence.java)。
+
+不变量：处理第 `i` 个数时，`pos` 只保存它前面的信息。先查后放可以避免同一个元素使用两次。
+
+```python
+class Solution:
+    def twoSum(self, nums: list[int], target: int) -> list[int]:
+        pos = {}
+        for i, num in enumerate(nums):
+            need = target - num
+            if need in pos:
+                return [pos[need], i]
+            pos[num] = i
+        return []
+```
+
+计数和分组：
+
+```python
+count = Counter(nums)
+
+groups = defaultdict(list)
+for word in words:
+    key = tuple(sorted(word))  # 或 26 位字符计数 tuple
+    groups[key].append(word)
+```
+
+### 2. 前缀和 + 哈希：连续区间计数
+
+对应旧题：[523. Continuous Subarray Sum](523.continuous-subarray-sum.java)、[525. Contiguous Array](525.contiguous-array.java)、[930. Binary Subarrays With Sum](930.binary-subarrays-with-sum.java)。
+
+不变量：`seen[prefix]` 是当前下标之前，这个前缀和出现的次数。若当前前缀为 `prefix`，目标区间前面的前缀必须是 `prefix - k`。
+
+```python
+class Solution:
+    def subarraySum(self, nums: list[int], k: int) -> int:
+        seen = defaultdict(int)
+        seen[0] = 1
+        prefix = 0
+        ans = 0
+
+        for num in nums:
+            prefix += num
+            ans += seen[prefix - k]
+            seen[prefix] += 1
+
+        return ans
+```
+
+记忆点：`seen[0] = 1` 是为了统计“从下标 0 开始”的合法区间。
+
+### 3. 双指针：用单调性排除答案
+
+对应旧题：[11. Container With Most Water](11.container-with-most-water.java)、[15. 3Sum](15.3-sum.java)、[259. 3Sum Smaller](259.3Sum-smaller.java)。
+
+```python
+def two_sum_sorted(nums: list[int], target: int) -> list[int]:
+    left, right = 0, len(nums) - 1
+
+    while left < right:
+        total = nums[left] + nums[right]
+        if total == target:
+            return [left, right]
+        if total < target:
+            left += 1
+        else:
+            right -= 1
+
+    return []
+```
+
+三数之和只多两件事：
+
+1. 先排序并固定第一个数。
+2. 固定数和左右指针都要去重。
+
+同向指针的记忆方式：`slow` 左边始终是已经处理好的答案，`fast` 负责扫描新元素。
+
+### 4. 滑动窗口：右扩，违规左缩
+
+对应旧题：[3. Longest Substring Without Repeating Characters](3.longest-substring-without-repeating-characters.java)、[239. Sliding Window Maximum](239.sliding-window-maximum.java)、[643. Maximum Average Subarray I](643.maximum-average-subarray-i.java)。
+
+不变量：每次更新答案时，窗口 `[left, right]` 必须合法。
+
+```python
+class Solution:
+    def lengthOfLongestSubstring(self, s: str) -> int:
+        count = defaultdict(int)
+        left = 0
+        ans = 0
+
+        for right, char in enumerate(s):
+            count[char] += 1
+
+            while count[char] > 1:
+                count[s[left]] -= 1
+                left += 1
+
+            ans = max(ans, right - left + 1)
+
+        return ans
+```
+
+固定长度窗口：
+
+```python
+window = sum(nums[:k])
+ans = window
+for right in range(k, len(nums)):
+    window += nums[right] - nums[right - k]
+    ans = max(ans, window)
+```
+
+容易错：问“最长合法”通常在收缩后更新；问“最短满足”通常在 `while` 收缩前后不断更新。
+
+### 5. 二分：统一找第一个满足条件的位置
+
+对应旧题：[33. Search in Rotated Sorted Array](33.search-in-rotated-sorted-array.java)、[35. Search Insert Position](35.search-insert-position.java)、[162. Find Peak Element](162.find-peak-element.java)、[410. Split Array Largest Sum](410.split-array-largest-sum.java)。
+
+数组 lower bound，区间固定用左闭右开 `[left, right)`：
+
+```python
+def lower_bound(nums: list[int], target: int) -> int:
+    left, right = 0, len(nums)
+
+    while left < right:
+        mid = left + (right - left) // 2
+        if nums[mid] < target:
+            left = mid + 1
+        else:
+            right = mid
+
+    return left
+```
+
+答案二分，找第一个 `feasible(x) == True`：
+
+```python
+def first_feasible(left: int, right: int) -> int:
+    while left < right:
+        mid = left + (right - left) // 2
+        if feasible(mid):
+            right = mid
+        else:
+            left = mid + 1
+    return left
+```
+
+二分前必须先说清三句话：
+
+1. 搜索区间是什么？
+2. `feasible(mid)` 的真假分别淘汰哪一半？
+3. 循环结束时 `left` 代表什么？
+
+### 6. 栈与单调栈：当前元素结算旧元素
+
+对应旧题：[20. Valid Parentheses](20.valid-parentheses.java)、[42. Trapping Rain Water](42.trapping-rain-water.java)、[496. Next Greater Element I](496.next-greater-element-i.java)、[503. Next Greater Element II](503.next-greater-element-ii.java)。
+
+普通括号栈：
+
+```python
+def is_valid(s: str) -> bool:
+    pairs = {")": "(", "]": "[", "}": "{"}
+    stack = []
+
+    for char in s:
+        if char not in pairs:
+            stack.append(char)
+        elif not stack or stack.pop() != pairs[char]:
+            return False
+
+    return not stack
+```
+
+下一个更大元素，栈中存“还没找到答案的下标”，并保持对应值单调递减：
+
+```python
+def next_greater(nums: list[int]) -> list[int]:
+    ans = [-1] * len(nums)
+    stack = []
+
+    for i, num in enumerate(nums):
+        while stack and nums[stack[-1]] < num:
+            prev = stack.pop()
+            ans[prev] = num
+        stack.append(i)
+
+    return ans
+```
+
+### 7. 链表：dummy、快慢指针、反转
+
+对应旧题：[19. Remove Nth Node From End of List](19.remove-nth-node-from-end-of-list.java)、[21. Merge Two Sorted Lists](21.merge-two-sorted-lists.java)、[206. Reverse Linked List](206.reverse-linked-list.java)。
+
+删除倒数第 `n` 个：
+
+```python
+class Solution:
+    def removeNthFromEnd(self, head, n: int):
+        dummy = ListNode(0, head)
+        slow = fast = dummy
+
+        for _ in range(n):
+            fast = fast.next
+
+        while fast.next:
+            slow = slow.next
+            fast = fast.next
+
+        slow.next = slow.next.next
+        return dummy.next
+```
+
+反转链表只背三行更新，先保存 `next_node`：
+
+```python
+def reverse_list(head):
+    prev, curr = None, head
+    while curr:
+        next_node = curr.next
+        curr.next = prev
+        prev, curr = curr, next_node
+    return prev
+```
+
+### 8. 树：DFS 向上返回，BFS 按层处理
+
+对应旧题：[94. Inorder Traversal](94.binary-tree-inorder-traversal.java)、[102. Level Order](102.binary-tree-level-order-traversal.java)、[104. Maximum Depth](104.maximum-depth-of-binary-tree.java)、[236. LCA](236.lowest-common-ancestor-of-a-binary-tree.java)。
+
+DFS 的核心问题：这个函数要向父节点返回什么？
+
+```python
+def max_depth(root) -> int:
+    def dfs(node) -> int:
+        if not node:
+            return 0
+
+        left = dfs(node.left)
+        right = dfs(node.right)
+        return max(left, right) + 1
+
+    return dfs(root)
+```
+
+层序 BFS：
+
+```python
+def level_order(root) -> list[list[int]]:
+    if not root:
+        return []
+
+    res = []
+    queue = deque([root])
+
+    while queue:
+        level = []
+        for _ in range(len(queue)):
+            curr = queue.popleft()
+            level.append(curr.val)
+            if curr.left:
+                queue.append(curr.left)
+            if curr.right:
+                queue.append(curr.right)
+        res.append(level)
+
+    return res
+```
+
+遍历顺序：
+
+```text
+前序：处理 -> 左 -> 右
+中序：左 -> 处理 -> 右    # BST 会得到有序序列
+后序：左 -> 右 -> 处理    # 适合从子树收集信息
+```
+
+### 9. 网格和图搜索：每个点只处理一次
+
+对应旧题：[200. Number of Islands](200.number-of-islands.java)、[286. Walls and Gates](286.walls-and-gates.java)、[490. The Maze](490.the-maze.java)、[547. Number of Provinces](547.number-of-provinces.java)。
+
+迭代 DFS，避免 Python 深递归：
+
+```python
+DIRS = ((1, 0), (-1, 0), (0, 1), (0, -1))
+
+def visit(grid: list[list[str]], start_row: int, start_col: int) -> None:
+    rows, cols = len(grid), len(grid[0])
+    stack = [(start_row, start_col)]
+    grid[start_row][start_col] = "0"  # 入栈时立刻标记
+
+    while stack:
+        row, col = stack.pop()
+        for dr, dc in DIRS:
+            nr, nc = row + dr, col + dc
+            if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] == "1":
+                grid[nr][nc] = "0"
+                stack.append((nr, nc))
+```
+
+无权最短路把 `stack.pop()` 换成 `queue.popleft()`，并保存步数。**入队时标记 visited**，否则同一个点会被重复入队。
+
+普通图优先建邻接表：
+
+```python
+graph = defaultdict(list)
+for start, end in edges:
+    graph[start].append(end)
+    graph[end].append(start)
+```
+
+### 10. 回溯：选择、递归、撤销
+
+对应旧题：[22. Generate Parentheses](22.generate-parentheses.java)、[39. Combination Sum](39.combination-sum.java)、[46. Permutations](46.permutations.java)、[51. N-Queens](51.n-queens.java)。
+
+组合/子集的通用骨架：
+
+```python
+def subsets_with_dup(nums: list[int]) -> list[list[int]]:
+    nums.sort()
+    res = []
+    path = []
+
+    def dfs(start: int) -> None:
+        res.append(path.copy())
+
+        for i in range(start, len(nums)):
+            if i > start and nums[i] == nums[i - 1]:
+                continue
+
+            path.append(nums[i])  # 选择
+            dfs(i + 1)            # 递归
+            path.pop()            # 撤销
+
+    dfs(0)
+    return res
+```
+
+只需要根据题意改三处：
+
+- `start`：组合避免回头；排列通常改用 `used`。
+- 何时把 `path.copy()` 放进 `res`。
+- 剪枝条件，例如 `remain < 0`。
+
+去重口诀：**先排序；同一层相同值只选第一次。**
+
+### 11. DP：五步写法
+
+对应旧题：[198. House Robber](198.house-robber.java)、[300. LIS](300.longest-increasing-subsequence.java)、[312. Burst Balloons](312.burst-balloons.java)、[322. Coin Change](322.coin-change.java)。
+
+每次固定写出：
+
+```text
+1. 状态：dp[i] / dp[i][j] 表示什么？
+2. 初值：最小问题的答案是什么？
+3. 转移：当前状态从哪些旧状态来？
+4. 顺序：计算当前状态时，依赖项是否已经算好？
+5. 答案：dp[-1]、max(dp) 还是 sum(dp)？
+```
+
+线性 DP，打家劫舍：
+
+```python
+def rob(nums: list[int]) -> int:
+    prev2 = 0  # dp[i - 2]
+    prev1 = 0  # dp[i - 1]
+
+    for num in nums:
+        curr = max(prev1, prev2 + num)
+        prev2, prev1 = prev1, curr
+
+    return prev1
+```
+
+背包只背遍历方向：
+
+```python
+# 0/1 背包：每个物品最多一次，容量倒序
+dp = [0] * (target + 1)
+for num in nums:
+    for total in range(target, num - 1, -1):
+        dp[total] = max(dp[total], dp[total - num] + num)
+
+# 完全背包：每个物品可重复，容量正序
+dp = [0] * (target + 1)
+dp[0] = 1
+for num in nums:
+    for total in range(num, target + 1):
+        dp[total] += dp[total - num]
+```
+
+区间 DP，先枚举短区间再枚举长区间：
+
+```python
+dp = [[0] * n for _ in range(n)]
+for length in range(2, n + 1):
+    for left in range(n - length + 1):
+        right = left + length - 1
+        for mid in range(left, right):
+            dp[left][right] = max(
+                dp[left][right],
+                dp[left][mid] + dp[mid + 1][right],
+            )
+```
+
+### 12. Heap 与 Dijkstra：堆顶是下一位候选
+
+对应旧题：[215. Kth Largest](215.kth-largest-element-in-an-array.java)、[295. Median from Data Stream](295.find-median-from-data-stream.java)、[505. The Maze II](505.the-maze-ii.java)、[1167. Connect Sticks](1167.minimum-cost-to-connect-sticks.java)。
+
+维护最大的 `k` 个元素，用大小不超过 `k` 的小根堆：
+
+```python
+heap = []
+for num in nums:
+    heapq.heappush(heap, num)
+    if len(heap) > k:
+        heapq.heappop(heap)
+
+kth_largest = heap[0]
+```
+
+Dijkstra：
+
+```python
+def dijkstra(graph, start):
+    dist = {start: 0}
+    heap = [(0, start)]
+
+    while heap:
+        curr_dist, node = heapq.heappop(heap)
+        if curr_dist != dist[node]:
+            continue
+
+        for nei, weight in graph[node]:
+            new_dist = curr_dist + weight
+            if new_dist < dist.get(nei, inf):
+                dist[nei] = new_dist
+                heapq.heappush(heap, (new_dist, nei))
+
+    return dist
+```
+
+容易错：Dijkstra 只适用于非负边权；弹出过期距离时要 `continue`。
+
+## 进阶但应该会默写的模板
+
+### 13. 拓扑排序
+
+对应旧题：[207. Course Schedule](207.course-schedule.java)、[210. Course Schedule II](210.course-schedule-ii.java)、[269. Alien Dictionary](269.alien-dictionary.java)。
+
+```python
+def topological_sort(num_nodes: int, edges: list[list[int]]) -> list[int]:
+    graph = [[] for _ in range(num_nodes)]
+    indegree = [0] * num_nodes
+
+    for start, end in edges:
+        graph[start].append(end)
+        indegree[end] += 1
+
+    queue = deque(i for i in range(num_nodes) if indegree[i] == 0)
+    order = []
+
+    while queue:
+        node = queue.popleft()
+        order.append(node)
+        for nei in graph[node]:
+            indegree[nei] -= 1
+            if indegree[nei] == 0:
+                queue.append(nei)
+
+    return order if len(order) == num_nodes else []
+```
+
+### 14. Union-Find
+
+对应旧题：[323. Connected Components](323.number-of-connected-components-in-an-undirected-graph.java)、[684. Redundant Connection](684.redundant-connection.java)、[990. Equality Equations](990.satisfiability-of-equality-equations.java)。
+
+```python
+class UnionFind:
+    def __init__(self, n: int):
+        self.parent = list(range(n))
+        self.size = [1] * n
+        self.count = n
+
+    def find(self, x: int) -> int:
+        while x != self.parent[x]:
+            self.parent[x] = self.parent[self.parent[x]]
+            x = self.parent[x]
+        return x
+
+    def union(self, a: int, b: int) -> bool:
+        root_a, root_b = self.find(a), self.find(b)
+        if root_a == root_b:
+            return False
+
+        if self.size[root_a] < self.size[root_b]:
+            root_a, root_b = root_b, root_a
+
+        self.parent[root_b] = root_a
+        self.size[root_a] += self.size[root_b]
+        self.count -= 1
+        return True
+```
+
+`union()` 返回 `False` 说明两点本来已经连通，常用于找冗余边或判断环。
+
+### 15. 区间合并
+
+```python
+def merge_intervals(intervals: list[list[int]]) -> list[list[int]]:
+    intervals.sort(key=lambda interval: interval[0])
+    merged = []
+
+    for start, end in intervals:
+        if not merged or merged[-1][1] < start:
+            merged.append([start, end])
+        else:
+            merged[-1][1] = max(merged[-1][1], end)
+
+    return merged
+```
+
+不变量：`merged` 始终互不重叠，最后一个区间是唯一可能与新区间相交的区间。
+
+### 16. Trie
+
+对应旧题：[208. Implement Trie](208.implement-trie-prefix-tree.java)、[211. Add and Search Words](211.design-add-and-search-words-data-structure.java)、[336. Palindrome Pairs](336.palindrome-pairs.java)。
+
+```python
+class TrieNode:
+    def __init__(self):
+        self.children = {}
+        self.is_word = False
+
+
+class Trie:
+    def __init__(self):
+        self.root = TrieNode()
+
+    def insert(self, word: str) -> None:
+        node = self.root
+        for char in word:
+            node = node.children.setdefault(char, TrieNode())
+        node.is_word = True
+
+    def search(self, word: str) -> bool:
+        node = self.root
+        for char in word:
+            if char not in node.children:
+                return False
+            node = node.children[char]
+        return node.is_word
+```
+
+## Python 重刷路线
+
+不要一次重刷 367 道。先用 42 道代表题把模板恢复，再补同类变体。
+
+### 针对我的优先复健顺序
+
+| 顺序 | 专题 | 先做这些旧题 | 真正的过关动作 |
+| ---: | --- | --- | --- |
+| 0 | 热身 | 1、49、128、347 | 熟悉 `dict/set/Counter/heapq` |
+| 1 | 二分边界 | 35、34、275、378、410 | 不看 README 默写 lower/upper bound，并说出返回值 |
+| 2 | Stack | 20、496、503、84、42 | 每题先写“栈里放谁、何时 pop、谁被结算” |
+| 3 | Priority Queue | 215、347、373、1167、295 | 写代码前说出堆顶含义和堆的最大尺寸 |
+| 4 | DP | 70、198、322、518、300、312、309 | 先写 State/Choice/Transition/Base/Order，再写代码 |
+
+复习间隔建议：当天做题，第二天不看模板重写，第七天只默写骨架。二分的 lower/upper、单调栈和背包遍历方向应该每次一起默写。
+
+### 第一轮：看到题型就能选模板
+
+| 专题 | 从旧题中重刷 | 过关标准 |
+| --- | --- | --- |
+| 哈希 | 1、49、128、217 | 能解释为什么先查后放、为什么 set 解法是 O(n) |
+| 双指针/窗口 | 3、11、15、19、643 | 能说出窗口或指针的不变量 |
+| 二分 | 33、35、162、410 | 全部统一成“第一个满足条件” |
+| 栈/队列 | 20、42、102、239、503 | 能解释元素在何时入栈、出栈 |
+| 树 | 94、104、110、124、236 | 先说清 DFS 返回值再写代码 |
+| 图/网格 | 200、207、323、547、787 | 分清 DFS、BFS、拓扑、并查集、Dijkstra |
+| 回溯 | 22、39、46、51 | 能不看代码写出选择/递归/撤销 |
+| DP | 70、198、300、312、322、518 | 每题先写 DP 五步 |
+| Heap/设计 | 215、295、380、1167 | 能解释堆大小或 O(1) 设计的不变量 |
+
+### 第二轮：每个模板连续做 2–3 个变体
+
+例如：
+
+```text
+Two Sum -> 3Sum -> 4Sum
+Number of Islands -> Surrounded Regions -> Number of Provinces
+House Robber -> House Robber II -> Stock 系列
+Combination Sum -> Combination Sum II -> Permutations II
+Course Schedule -> Course Schedule II -> Alien Dictionary
+Next Greater Element I -> II -> Largest Rectangle
+```
+
+这种顺序最符合过去的学习规律：先稳定骨架，再只关注题目之间变化的那一行。
+
+### 第三轮：错题只记一张卡
+
+```text
+题号：
+触发信号：
+选择模板：
+核心不变量：
+本次错误：
+下次看到什么条件会立刻想到它：
+```
+
+## 提交前检查
+
+- [ ] 空输入、单元素、全相同、答案不存在是否正确？
+- [ ] 下标区间是 `[left, right]` 还是 `[left, right)`？
+- [ ] `while` 会不会不移动指针而死循环？
+- [ ] visited 是入队时标记，还是出队时才标记？
+- [ ] 回溯 append 的是 `path.copy()` 吗？
+- [ ] 排序后是否需要去重？去重发生在同一层还是全局？
+- [ ] Heap 需要小根还是最大值取负？
+- [ ] DP 的遍历顺序能保证依赖状态已经计算？
+- [ ] 时间和空间复杂度能否各用一句话说明？
+- [ ] Python 是否可能遇到递归深度问题？
+
+---
+
+## 旧 Java 题解笔记
+
+以下内容保留原来的题目、思路和考点记录，作为 Python 重刷时的对照。
 
 题目|问题|解法|考点
 -------- | :-----------: | :-----------: | :-----------: 
