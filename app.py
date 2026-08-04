@@ -206,7 +206,7 @@ def set_mentor_client_state(
     state: Literal["loading", "thinking", "answering", "done", "error"],
     *,
     anchor_id: str = "",
-    surface: Literal["main", "floating"] = "main",
+    surface: Literal["main", "floating", "workspace"] = "main",
 ) -> None:
     """Reflect tutor activity on the floating button, browser title, and scroll."""
 
@@ -256,7 +256,9 @@ def set_mentor_client_state(
           const target = anchorId ? doc.getElementById(anchorId) : null;
           const scrollRoot = surface === "floating"
             ? target?.closest('[data-testid="stPopoverBody"]')
-            : null;
+            : surface === "workspace"
+              ? target?.closest('[data-testid="stVerticalBlockBorderWrapper"]')
+              : null;
           const scroll = (behavior = "smooth") => {{
             if (scrollRoot) {{
               scrollRoot.scrollTo({{
@@ -297,15 +299,15 @@ def configure_page() -> None:
         page_title="LeetTutor-Local",
         page_icon="🧠",
         layout="wide",
-        initial_sidebar_state="expanded",
+        initial_sidebar_state="collapsed",
     )
     st.markdown(
         """
         <style>
         .block-container {
-            width: min(100%, 1480px);
-            max-width: 1480px;
-            padding: 2rem clamp(1rem, 3vw, 3rem) 6rem;
+            width: min(100%, 1780px);
+            max-width: 1780px;
+            padding: 1.1rem clamp(0.75rem, 1.5vw, 1.5rem) 3rem;
         }
         [data-testid="stSidebar"][aria-expanded="true"] {
             width: 330px !important;
@@ -326,6 +328,31 @@ def configure_page() -> None:
         .status-line {color: #667085; font-size: 0.9rem; margin-top: -0.5rem;}
         .stChatMessage {border-radius: 12px;}
         textarea {font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;}
+        .st-key-problem_pane [data-testid="stVerticalBlockBorderWrapper"],
+        .st-key-code_pane [data-testid="stVerticalBlockBorderWrapper"],
+        .st-key-mentor_pane [data-testid="stVerticalBlockBorderWrapper"] {
+            border-color: rgba(82, 96, 128, 0.18);
+            box-shadow: 0 8px 24px rgba(40, 53, 82, 0.06);
+        }
+        .st-key-mentor_history [data-testid="stVerticalBlockBorderWrapper"] {
+            background: linear-gradient(180deg, #fbfcff 0%, #f7f8fc 100%);
+        }
+        @media (min-width: 901px) {
+            .st-key-mentor_pane {
+                position: sticky;
+                top: 0.75rem;
+                align-self: flex-start;
+            }
+        }
+        .workspace-kicker {
+            color: #667085;
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            margin-bottom: -0.35rem;
+            text-transform: uppercase;
+        }
+        .workspace-title {margin: 0 0 0.25rem 0;}
 
         /* Native Streamlit popover, visually presented as a floating mentor. */
         .st-key-floating_mentor {
@@ -1119,6 +1146,21 @@ def render_history(history: list[HistoryItem], *, render_mermaid: bool) -> None:
                 st.markdown(visible)
 
 
+def _build_api_messages(
+    history: list[HistoryItem], system_prompt: str, *, limit: int = 12
+) -> list[dict[str, str]]:
+    """Keep only the newest workspace snapshot while preserving real dialogue."""
+
+    recent_history = history[-limit:]
+    messages = [{"role": "system", "content": system_prompt}]
+    for index, item in enumerate(recent_history):
+        content = item["content"]
+        if item["role"] == "user" and index < len(recent_history) - 1:
+            content = item.get("display", content)
+        messages.append({"role": item["role"], "content": content})
+    return messages
+
+
 def submit_to_tutor(
     *,
     mode: str,
@@ -1131,7 +1173,7 @@ def submit_to_tutor(
     reasoning_effort: str,
     max_tokens: int,
     config: AppConfig,
-    surface: Literal["main", "floating"] = "main",
+    surface: Literal["main", "floating", "workspace"] = "main",
 ) -> None:
     history: list[HistoryItem] = st.session_state[f"{mode}_messages"]
     history.append({"role": "user", "content": content, "display": display})
@@ -1159,13 +1201,9 @@ def submit_to_tutor(
         try:
             with st.spinner("小沐正在加载模型并思考…", show_time=True):
                 client = LocalLLMClient(settings)
-                api_messages = [
-                    {"role": "system", "content": config.prompts[mode]},
-                    *[
-                        {"role": item["role"], "content": item["content"]}
-                        for item in history[-24:]
-                    ],
-                ]
+                api_messages = _build_api_messages(
+                    history, config.prompts[mode]
+                )
                 for delta in client.stream_chat(
                     messages=api_messages,
                     model=model,
@@ -1413,64 +1451,99 @@ def _import_problem_into_workspace(reference: str) -> ImportedProblem:
     return imported_problem
 
 
-def render_solution_workbench() -> tuple[str, str] | None:
-    """Render the in-browser IDE and return an optional tutor request."""
+def render_problem_pane() -> None:
+    """Keep the complete problem visible beside the editor."""
 
-    store = SolutionStore(PROJECT_ROOT)
-    pending: tuple[str, str] | None = None
-    st.markdown("### 刷题 IDE")
-    st.caption("导入题目 → 写代码 → 本地跑样例 → 把当前现场交给导师。")
-
-    with st.container(border=True):
-        reference_col, import_col = st.columns([4, 1])
-        reference_col.text_input(
-            "LeetCode 题目链接或 slug",
-            key="leetcode_reference",
-            placeholder="https://leetcode.com/problems/binary-search/",
-        )
-        import_clicked = import_col.button(
-            "导入题目", type="primary", use_container_width=True
-        )
-        if import_clicked:
-            with st.spinner("正在从 LeetCode 读取公开题面与 Python 模板…"):
-                try:
-                    imported_problem = _import_problem_into_workspace(
-                        st.session_state.leetcode_reference
-                    )
-                except LeetCodeImportError as exc:
-                    st.session_state.leetcode_import_error = str(exc)
-                    st.error(str(exc))
-                else:
-                    title = f"{imported_problem.frontend_id}. {imported_problem.title}"
-                    st.success(f"已导入 {title}。样例参数已转换为可运行 JSON。")
+    with st.container(height=760, border=True, key="problem_pane"):
+        st.markdown('<p class="workspace-kicker">Problem</p>', unsafe_allow_html=True)
+        st.markdown("### 题目")
 
         imported = st.session_state.get("leetcode_problem", {})
+        selected = (
+            get_problem(st.session_state.selected_problem_id)
+            if st.session_state.selected_problem_id
+            else None
+        )
         if imported:
-            badge = "Premium" if imported.get("paid_only") else imported.get("difficulty", "")
-            st.markdown(f"#### {imported.get('frontend_id')}. {imported.get('title')} · {badge}")
+            badge = (
+                "Premium"
+                if imported.get("paid_only")
+                else imported.get("difficulty", "")
+            )
+            st.markdown(
+                f"#### {imported.get('frontend_id')}. {imported.get('title')} · {badge}"
+            )
             topics = imported.get("topics") or []
             if topics:
                 st.caption(" · ".join(str(topic) for topic in topics))
-            open_col, statement_col = st.columns(2)
-            open_col.link_button(
+            st.link_button(
                 "在 LeetCode 打开 / 提交",
                 str(imported.get("url")),
                 use_container_width=True,
             )
-            with statement_col.popover("查看完整题面", use_container_width=True):
-                st.markdown(str(imported.get("statement", "（题面为空）")))
+            st.divider()
+            st.markdown(str(imported.get("statement", "（题面为空）")))
+        elif selected:
+            st.markdown(f"#### {selected.id}. {selected.title_cn} · {selected.difficulty}")
+            st.write(f"**本轮目标：** {selected.focus}")
+            st.write(f"**先想清楚：** {selected.invariant_prompt}")
+            st.info("完整题面尚未载入。载入后会一直显示在这里，不再藏在弹窗里。")
+            if st.button(
+                "载入完整题面和 Python 模板",
+                type="primary",
+                use_container_width=True,
+                key="problem_pane_import_selected",
+            ):
+                with st.spinner("正在从 LeetCode 载入题面…"):
+                    try:
+                        _import_problem_into_workspace(selected.url)
+                    except LeetCodeImportError as exc:
+                        st.session_state.leetcode_import_error = str(exc)
+                        st.error(str(exc))
+                    else:
+                        st.rerun()
+        else:
+            st.info("点击上方“导师给我下一题”，或在下面粘贴 LeetCode 链接。")
 
-        meta_col, language_col = st.columns([3, 1])
-        problem = meta_col.text_input(
-            "当前题目",
-            key="algorithm_problem",
-            placeholder="例如 34. Find First and Last Position",
-        )
+        with st.expander("换题 / 手动导入", expanded=not bool(imported or selected)):
+            st.text_input(
+                "LeetCode 题目链接或 slug",
+                key="leetcode_reference",
+                placeholder="https://leetcode.com/problems/binary-search/",
+            )
+            if st.button(
+                "导入到工作台",
+                type="primary",
+                use_container_width=True,
+                key="problem_pane_import_manual",
+            ):
+                with st.spinner("正在读取公开题面与 Python 模板…"):
+                    try:
+                        _import_problem_into_workspace(
+                            st.session_state.leetcode_reference
+                        )
+                    except LeetCodeImportError as exc:
+                        st.session_state.leetcode_import_error = str(exc)
+                        st.error(str(exc))
+                    else:
+                        st.rerun()
+
+
+def render_code_pane() -> tuple[str, str] | None:
+    """Render a focused code-and-run pane and return an optional tutor request."""
+
+    store = SolutionStore(PROJECT_ROOT)
+    pending: tuple[str, str] | None = None
+    with st.container(height=760, border=True, key="code_pane"):
+        header_col, language_col = st.columns([3, 1])
+        with header_col:
+            st.markdown('<p class="workspace-kicker">Solution</p>', unsafe_allow_html=True)
+            st.markdown("### 代码")
         language = language_col.selectbox(
             "语言", ["Python", "Java"], key="code_language"
         )
 
-        with st.expander("载入仓库中的已有题解", expanded=False):
+        with st.expander("载入已有题解", expanded=False):
             files = store.list_files(language)
             file_options = ["（新建）", *files]
             file_key = f"existing_solution_{language.lower()}"
@@ -1484,6 +1557,7 @@ def render_solution_workbench() -> tuple[str, str] | None:
                 "载入",
                 disabled=existing == "（新建）",
                 use_container_width=True,
+                key=f"load_solution_{language.lower()}",
             ):
                 try:
                     st.session_state.code_editor = store.load(language, existing)
@@ -1492,52 +1566,51 @@ def render_solution_workbench() -> tuple[str, str] | None:
                 else:
                     st.session_state[f"save_filename_{language.lower()}"] = existing
                     st.session_state.code_run_result = {}
-                    st.success(f"已载入 {existing}。")
+                    st.rerun()
 
         code = st.text_area(
             "代码编辑器",
-            height=500,
+            height=400,
             key="code_editor",
             help="点击运行后才会启动受限子进程；不会自动提交到 LeetCode。",
+            label_visibility="collapsed",
         )
 
-        method_col, timeout_col = st.columns([3, 1])
-        method_col.text_input(
-            "Solution 方法名",
-            key="solution_method",
-            placeholder="留空时自动识别唯一的公开方法",
-        )
-        timeout_col.number_input(
-            "超时（秒）",
-            min_value=0.5,
-            max_value=10.0,
-            step=0.5,
-            key="code_timeout_seconds",
-        )
-        st.text_area(
-            "测试用例（JSON）",
-            height=180,
-            key="solution_test_cases",
-            help=(
-                '每项格式：{"args": [...], "kwargs": {}, "expected": ...}。'
-                "没有 expected 时只展示实际输出。"
-            ),
-        )
+        with st.expander("测试用例与运行设置", expanded=True):
+            method_col, timeout_col = st.columns([2.2, 1])
+            method_col.text_input(
+                "Solution 方法名",
+                key="solution_method",
+                placeholder="留空时自动识别",
+            )
+            timeout_col.number_input(
+                "超时（秒）",
+                min_value=0.5,
+                max_value=10.0,
+                step=0.5,
+                key="code_timeout_seconds",
+            )
+            st.text_area(
+                "测试用例（JSON）",
+                height=105,
+                key="solution_test_cases",
+                help='每项格式：{"args": [...], "expected": ...}',
+            )
 
         run_col, analyze_col = st.columns(2)
         run_clicked = run_col.button(
-            "▶ 运行代码",
+            "▶ 运行",
             type="primary",
             use_container_width=True,
             disabled=language != "Python",
         )
         analyze_clicked = analyze_col.button(
-            "▶ 运行并让导师分析",
+            "运行并问导师",
             use_container_width=True,
             disabled=language != "Python",
         )
         if language != "Python":
-            st.info("当前内置运行器先支持 Python；Java 仍可编辑、保存和交给导师 Review。")
+            st.info("Java 可编辑、保存和 Review；当前内置运行器先支持 Python。")
         if run_clicked or analyze_clicked:
             with st.spinner("正在受限子进程中运行…"):
                 try:
@@ -1551,86 +1624,153 @@ def render_solution_workbench() -> tuple[str, str] | None:
                     run_result = RunResult(status="error", summary=str(exc))
             st.session_state.code_run_result = run_result.to_dict()
             if analyze_clicked:
-                question = (
-                    "请分析最近一次运行现场，只指出一个最关键的问题并追问我。"
-                )
+                question = "分析最近运行结果，只指出最关键的问题并追问我。"
                 pending = (
                     _workspace_request(question, trigger="运行后自动求助"),
-                    f"运行了 **{problem or '当前题目'}**，请导师根据结果继续引导。",
+                    "我运行了当前代码，请根据结果继续引导。",
                 )
 
         result = st.session_state.get("code_run_result", {})
         if result:
             _render_run_result(result)
 
-        st.text_input(
-            "我卡在哪里（可选）",
-            key="workspace_question",
-            placeholder="例如：为什么重复元素时这里会越界？",
-        )
-        stuck_col, continue_col, review_col = st.columns(3)
-        if stuck_col.button("我卡住了，提示我", use_container_width=True):
-            pending = (
-                _workspace_request(
-                    st.session_state.workspace_question,
-                    trigger="用户在代码现场卡住",
-                ),
-                f"我在 **{problem or '当前题目'}** 卡住了，请看当前代码和运行结果。",
-            )
-        if continue_col.button("根据现有代码继续引导", use_container_width=True):
-            pending = (
-                _workspace_request(
-                    st.session_state.workspace_question
-                    or "请判断我现在完成到哪一步，并只给下一步追问。",
-                    trigger="继续导师对练",
-                ),
-                f"请根据 **{problem or '当前题目'}** 的现有代码继续引导。",
-            )
-        if review_col.button("代码 Review", use_container_width=True):
-            if not code.strip():
-                st.error("请先写代码。")
-            else:
-                request = build_code_review_request(
-                    problem=problem,
-                    language=language,
-                    code=code,
-                    notes=(
-                        st.session_state.workspace_question
-                        + "\n最近运行现场：\n"
-                        + _run_result_text()
-                    ),
-                )
-                pending = (
-                    request,
-                    f"请 Review 我的 **{language}** 代码：{problem or '未命名题目'}",
-                )
-
         suffix = SolutionStore.LANGUAGE_SUFFIXES[language]
         filename_key = f"save_filename_{language.lower()}"
-        if filename_key not in st.session_state:
-            st.session_state[filename_key] = f"0.problem-name{suffix}"
+        st.session_state.setdefault(filename_key, f"0.problem-name{suffix}")
         with st.expander("保存到仓库", expanded=False):
-            name_col, overwrite_col, save_col = st.columns([3, 1, 1])
-            filename = name_col.text_input("保存文件名", key=filename_key)
+            st.text_input("保存文件名", key=filename_key)
+            save_col, overwrite_col = st.columns([2, 1])
             overwrite = overwrite_col.checkbox(
                 "允许覆盖", key=f"overwrite_{language}"
             )
-            if save_col.button("保存", use_container_width=True):
+            if save_col.button(
+                "保存当前代码", use_container_width=True, key=f"save_{language}"
+            ):
                 try:
                     path = store.save(
-                        language, filename.strip(), code, overwrite=overwrite
+                        language,
+                        st.session_state[filename_key].strip(),
+                        code,
+                        overwrite=overwrite,
                     )
                 except SolutionError as exc:
                     st.error(str(exc))
                 else:
                     st.success(f"已保存：{path.relative_to(PROJECT_ROOT)}")
 
-        st.caption(
-            "安全说明：运行器会限制时间、内存并阻止常见文件/网络/子进程操作，"
-            "但它不是用于执行陌生代码的强安全沙箱。只运行你自己编写的代码。"
-        )
-
     return pending
+
+
+def render_workspace_mentor(
+    *,
+    pending: tuple[str, str] | None,
+    settings: ProviderSettings,
+    model: str,
+    temperature: float,
+    top_p: float,
+    reasoning_effort: str,
+    max_tokens: int,
+    config: AppConfig,
+) -> None:
+    """Render one always-visible conversation surface next to the code."""
+
+    history: list[HistoryItem] = st.session_state.algorithm_messages
+    with st.container(height=650, border=True, key="mentor_pane"):
+        st.markdown('<p class="workspace-kicker">Tutor</p>', unsafe_allow_html=True)
+        st.markdown("### 👩🏻‍🏫 小沐导师")
+        current_problem = st.session_state.get("algorithm_problem", "")
+        st.caption(f"正在看：{current_problem or '尚未选题'}")
+
+        history_box = st.container(height=340, border=True, key="mentor_history")
+        with history_box:
+            if history:
+                render_history(history, render_mermaid=False)
+            else:
+                st.info(
+                    "我会一直待在这里，并读取左侧题面、中间代码、测试和最近运行结果。"
+                )
+                st.markdown(
+                    "先告诉我你的思路，或者直接写代码；卡住时我只提示下一步。"
+                )
+
+        with st.form("mentor_workspace_form", clear_on_submit=True, border=False):
+            question = st.text_area(
+                "继续问小沐",
+                height=82,
+                placeholder="继续追问；不用回到页面上方，也不用再贴代码",
+                label_visibility="collapsed",
+            )
+            send_clicked = st.form_submit_button(
+                "发送给小沐", type="primary", use_container_width=True
+            )
+            stuck_col, next_col, review_col = st.columns(3)
+            stuck_clicked = stuck_col.form_submit_button(
+                "我卡住了", use_container_width=True
+            )
+            next_clicked = next_col.form_submit_button(
+                "下一步", use_container_width=True
+            )
+            review_clicked = review_col.form_submit_button(
+                "Review", use_container_width=True
+            )
+
+        requested: tuple[str, str] | None = pending
+        stripped_question = question.strip()
+        if send_clicked:
+            text = stripped_question or "请根据当前代码现场继续问我一个问题。"
+            requested = (
+                _workspace_request(text, trigger="导师工作台连续对话"),
+                text,
+            )
+        elif stuck_clicked:
+            text = stripped_question or (
+                "我卡住了。判断我已经做到哪里，只指出一个最关键的问题。"
+            )
+            requested = (
+                _workspace_request(text, trigger="用户在代码现场卡住"),
+                text,
+            )
+        elif next_clicked:
+            text = stripped_question or (
+                "不要给完整解法；根据现有代码只提示下一步，再问我一个问题。"
+            )
+            requested = (
+                _workspace_request(text, trigger="继续导师对练"),
+                text,
+            )
+        elif review_clicked:
+            code = st.session_state.get("code_editor", "")
+            if not code.strip():
+                st.warning("先在中间写一点代码，我才能 Review。")
+            else:
+                requested = (
+                    build_code_review_request(
+                        problem=current_problem,
+                        language=st.session_state.get("code_language", "Python"),
+                        code=code,
+                        notes=(stripped_question + "\n最近运行现场：\n" + _run_result_text()),
+                    ),
+                    stripped_question or "请 Review 当前代码，但先别直接给完整答案。",
+                )
+
+        if requested:
+            if not model:
+                st.warning("先在左侧模型设置中选择或填写模型。")
+            else:
+                with history_box:
+                    submit_to_tutor(
+                        mode="algorithm",
+                        content=requested[0],
+                        display=requested[1],
+                        settings=settings,
+                        model=model,
+                        temperature=temperature,
+                        top_p=top_p,
+                        reasoning_effort=reasoning_effort,
+                        max_tokens=max_tokens,
+                        config=config,
+                        surface="workspace",
+                    )
 
 
 def _save_problem_status(problem: Problem, status: str) -> None:
@@ -1660,23 +1800,37 @@ def _select_next_mentor_problem() -> Problem:
 
 
 def render_mentor_panel() -> tuple[str, str] | None:
-    """Render the guided curriculum and return an optional first tutor turn."""
+    """Render compact curriculum controls above the three-pane workspace."""
 
-    pending: tuple[str, str] | None = None
     progress = st.session_state.study_progress
     summary = progress_summary(progress)
+    problem = (
+        get_problem(st.session_state.selected_problem_id)
+        if st.session_state.selected_problem_id
+        else None
+    )
 
     with st.container(border=True):
-        st.markdown("### 导师模式")
-        st.write("系统负责安排下一题；你只需要讲思路、回答追问、写代码。")
-        filter_col, difficulty_col, action_col = st.columns([1.2, 1.2, 1])
-        filter_col.selectbox(
-            "训练路线", ["自动补弱", *TOPIC_ORDER], key="mentor_track"
+        summary_col, guide_col, next_col, settings_col = st.columns(
+            [3.8, 1, 1, 1], vertical_alignment="center"
         )
-        difficulty_col.selectbox(
-            "难度", ["循序渐进", "Easy", "Medium", "Hard"], key="mentor_difficulty"
+        with summary_col:
+            if problem:
+                st.markdown(
+                    f"**导师训练 · {problem.id}. {problem.title_cn} · {problem.difficulty}**"
+                )
+                st.caption(
+                    f"{problem.focus}　·　已练 {summary['attempted']}/{summary['total']}　·　"
+                    f"掌握 {summary['mastered']}　·　复习 {summary['review']}"
+                )
+            else:
+                st.markdown("**导师训练 · 还没有选择题目**")
+                st.caption("小沐会从二分、栈、优先队列和 DP 中安排起点。")
+
+        start_guide = guide_col.button(
+            "开始引导", use_container_width=True, disabled=problem is None
         )
-        if action_col.button(
+        if next_col.button(
             "导师给我下一题", type="primary", use_container_width=True
         ):
             try:
@@ -1691,50 +1845,36 @@ def render_mentor_panel() -> tuple[str, str] | None:
                         st.session_state.leetcode_import_error = str(exc)
                 st.rerun()
 
-        st.caption(
-            f"已练 {summary['attempted']}/{summary['total']} · "
-            f"已掌握 {summary['mastered']} · 待复习 {summary['review']}"
-        )
+        with settings_col.popover("训练设置", use_container_width=True):
+            st.selectbox(
+                "训练路线", ["自动补弱", *TOPIC_ORDER], key="mentor_track"
+            )
+            st.selectbox(
+                "难度",
+                ["循序渐进", "Easy", "Medium", "Hard"],
+                key="mentor_difficulty",
+            )
+            if problem:
+                st.link_button("打开 LeetCode", problem.url, use_container_width=True)
+                mastered_col, review_col = st.columns(2)
+                if mastered_col.button("标记掌握", use_container_width=True):
+                    _save_problem_status(problem, "mastered")
+                    st.toast("已记录为掌握。")
+                if review_col.button("稍后复习", use_container_width=True):
+                    _save_problem_status(problem, "review")
+                    st.toast("已加入复习队列。")
 
-        problem = (
-            get_problem(st.session_state.selected_problem_id)
-            if st.session_state.selected_problem_id
-            else None
-        )
-        if problem is None:
-            st.info("点击“导师给我下一题”，系统会从二分、栈、优先队列和 DP 中安排起点。")
-            return None
-
-        difficulty_colors = {"Easy": "green", "Medium": "orange", "Hard": "red"}
-        st.markdown(
-            f"#### {problem.id}. {problem.title_cn} · :{difficulty_colors[problem.difficulty]}[{problem.difficulty}]"
-        )
-        st.write(f"**本轮训练目标：** {problem.focus}")
-        st.write(f"**开场自问：** {problem.invariant_prompt}")
-        attempt = int(progress.get(str(problem.id), {}).get("attempts", 1))
-
-        imported = st.session_state.get("leetcode_problem", {})
-        imported_matches = imported.get("slug") == problem.slug
-        if st.session_state.get("leetcode_import_error"):
+        if problem and st.session_state.get("leetcode_import_error"):
             st.warning(
                 "自动导入题面失败："
                 + st.session_state.leetcode_import_error
-                + " 你仍可打开原题，或在下方重试导入。"
+                + " 可在左侧题目栏重试。"
             )
-        if imported_matches:
-            with st.expander("📖 完整题目内容", expanded=True):
-                st.markdown(str(imported.get("statement", "（题面为空）")))
-                topics = imported.get("topics") or []
-                if topics:
-                    st.caption("Topics：" + " · ".join(str(topic) for topic in topics))
-        else:
-            st.info("点击“开始导师引导”时会自动载入完整题面、Python 模板和样例参数。")
 
-        open_col, guide_col = st.columns(2)
-        open_col.link_button(
-            "打开 LeetCode 题目", problem.url, use_container_width=True
-        )
-        if guide_col.button("开始导师引导", use_container_width=True):
+        if problem and start_guide:
+            attempt = int(progress.get(str(problem.id), {}).get("attempts", 1))
+            imported = st.session_state.get("leetcode_problem", {})
+            imported_matches = imported.get("slug") == problem.slug
             if not imported_matches:
                 with st.spinner("正在载入完整题面和 Python 模板…"):
                     try:
@@ -1761,15 +1901,7 @@ def render_mentor_panel() -> tuple[str, str] | None:
             history.append({"role": "assistant", "content": opening})
             st.rerun()
 
-        mastered_col, review_col = st.columns(2)
-        if mastered_col.button("这题已掌握", use_container_width=True):
-            _save_problem_status(problem, "mastered")
-            st.success("已记录为掌握。下一题会根据新的薄弱分布选择。")
-        if review_col.button("这题需要复习", use_container_width=True):
-            _save_problem_status(problem, "review")
-            st.warning("已加入复习队列，之后会优先再次出现。")
-
-    return pending
+    return None
 
 
 def render_algorithm_mode(
@@ -1782,42 +1914,19 @@ def render_algorithm_mode(
     max_tokens: int,
     config: AppConfig,
 ) -> None:
-    st.subheader("Algorithm Mode")
-    st.write("导师安排训练节奏；你可以在当前页面导题、写代码、运行，并把现场交给导师。")
     pending = render_mentor_panel()
-    review_request = render_solution_workbench()
-    if review_request:
-        pending = review_request
-
-    render_floating_mentor(
-        mode="algorithm",
-        model=model,
-        settings=settings,
-        temperature=temperature,
-        top_p=top_p,
-        reasoning_effort=reasoning_effort,
-        max_tokens=max_tokens,
-        config=config,
+    problem_col, code_col, mentor_col = st.columns(
+        [0.95, 1.15, 0.9], gap="small", vertical_alignment="top"
     )
-
-    st.markdown("#### 导师对练记录")
-    history: list[HistoryItem] = st.session_state.algorithm_messages
-    render_history(history, render_mermaid=False)
-    chat_prompt = st.chat_input(
-        "直接问当前代码；题面、编辑器、测试和最近运行结果会一起交给导师",
-        key="algorithm_chat_input",
-    )
-    if chat_prompt:
-        pending = (
-            _workspace_request(chat_prompt, trigger="代码工作区对话"),
-            chat_prompt,
-        )
-
-    if pending:
-        submit_to_tutor(
-            mode="algorithm",
-            content=pending[0],
-            display=pending[1],
+    with problem_col:
+        render_problem_pane()
+    with code_col:
+        code_request = render_code_pane()
+        if code_request:
+            pending = code_request
+    with mentor_col:
+        render_workspace_mentor(
+            pending=pending,
             settings=settings,
             model=model,
             temperature=temperature,
@@ -1897,8 +2006,6 @@ def main() -> None:
     configure_page()
     config = initialize_state()
 
-    st.title("LeetTutor-Local")
-    st.caption("本地大模型驱动的算法面试与系统设计训练场")
     if st.session_state.config_load_error:
         st.warning(
             f"配置文件没有成功载入，当前使用默认值。{st.session_state.config_load_error}"
@@ -1908,7 +2015,9 @@ def main() -> None:
             f"学习进度没有成功载入，本次从空进度开始。{st.session_state.progress_load_error}"
         )
 
-    st.radio(
+    title_col, mode_col = st.columns([1, 1], vertical_alignment="center")
+    title_col.markdown("## 🧠 LeetTutor")
+    mode_col.radio(
         "学习模式",
         list(MODE_LABELS),
         horizontal=True,
