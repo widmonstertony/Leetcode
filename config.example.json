@@ -4,7 +4,7 @@
     "Ollama": "http://localhost:11434",
     "LM Studio": "http://localhost:1234/v1"
   },
-  "model": "qwen2.5-coder:7b",
+  "model": "qwen3.5:9b",
   "temperatures": {
     "algorithm": 0.2,
     "system_design": 0.5
@@ -16,7 +16,7 @@
     "system_design": "low"
   },
   "max_tokens": {
-    "algorithm": 384,
-    "system_design": 768
+    "algorithm": 768,
+    "system_design": 1536
   }
 }

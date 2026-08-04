@@ -43,7 +43,7 @@ class AppConfig:
         default_factory=lambda: {"algorithm": "none", "system_design": "low"}
     )
     max_tokens: dict[str, int] = field(
-        default_factory=lambda: {"algorithm": 384, "system_design": 768}
+        default_factory=lambda: {"algorithm": 768, "system_design": 1536}
     )
     api_key: str = ""
     prompts: dict[str, str] = field(

@@ -23,7 +23,7 @@ def test_config_round_trip(tmp_path: Path, monkeypatch) -> None:
     assert loaded.prompts["algorithm"] == "custom prompt"
     assert loaded.temperatures["algorithm"] == 0.2
     assert loaded.reasoning_efforts["algorithm"] == "none"
-    assert loaded.max_tokens["algorithm"] == 384
+    assert loaded.max_tokens["algorithm"] == 768
 
 
 def test_invalid_numbers_fall_back_or_clamp() -> None:

@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Literal
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 from leettutor.code_runner import (
     CodeValidationError,
@@ -70,6 +71,203 @@ REASONING_LABELS = {
 }
 
 
+def install_mentor_client_controller() -> None:
+    """Install persistent drag behavior for the native floating popover button."""
+
+    components.html(
+        """
+        <script>
+        (() => {
+          const win = window.parent;
+          const doc = win.document;
+          const storageKey = "leettutor-floating-mentor-position-v1";
+
+          const clamp = (root, left, top) => {
+            const width = root.offsetWidth || 180;
+            const height = root.offsetHeight || 64;
+            return {
+              left: Math.max(8, Math.min(left, win.innerWidth - width - 8)),
+              top: Math.max(8, Math.min(top, win.innerHeight - height - 8)),
+            };
+          };
+
+          const save = (root) => {
+            try {
+              const rect = root.getBoundingClientRect();
+              win.localStorage.setItem(storageKey, JSON.stringify({
+                left: rect.left,
+                top: rect.top,
+              }));
+            } catch (_) {}
+          };
+
+          const restore = (root) => {
+            try {
+              const saved = JSON.parse(win.localStorage.getItem(storageKey) || "null");
+              if (!saved || !Number.isFinite(saved.left) || !Number.isFinite(saved.top)) return;
+              const point = clamp(root, saved.left, saved.top);
+              root.style.right = "auto";
+              root.style.bottom = "auto";
+              root.style.left = `${point.left}px`;
+              root.style.top = `${point.top}px`;
+            } catch (_) {}
+          };
+
+          const bind = () => {
+            const root = doc.querySelector(".st-key-floating_mentor");
+            const button = root?.querySelector("button");
+            if (!root || !button || button.dataset.mentorDragBound === "1") return;
+            button.dataset.mentorDragBound = "1";
+            restore(root);
+
+            let gesture = null;
+            let suppressClick = false;
+            button.addEventListener("pointerdown", (event) => {
+              if (event.button !== 0) return;
+              const rect = root.getBoundingClientRect();
+              gesture = {
+                pointerId: event.pointerId,
+                startX: event.clientX,
+                startY: event.clientY,
+                left: rect.left,
+                top: rect.top,
+                moved: false,
+              };
+              try { button.setPointerCapture(event.pointerId); } catch (_) {}
+            });
+            button.addEventListener("pointermove", (event) => {
+              if (!gesture || event.pointerId !== gesture.pointerId) return;
+              const dx = event.clientX - gesture.startX;
+              const dy = event.clientY - gesture.startY;
+              if (!gesture.moved && Math.hypot(dx, dy) < 6) return;
+              gesture.moved = true;
+              event.preventDefault();
+              const point = clamp(root, gesture.left + dx, gesture.top + dy);
+              root.classList.add("mentor-dragging");
+              root.style.right = "auto";
+              root.style.bottom = "auto";
+              root.style.left = `${point.left}px`;
+              root.style.top = `${point.top}px`;
+            });
+            const finish = (event) => {
+              if (!gesture || event.pointerId !== gesture.pointerId) return;
+              if (gesture.moved) {
+                suppressClick = true;
+                save(root);
+                setTimeout(() => { suppressClick = false; }, 80);
+              }
+              root.classList.remove("mentor-dragging");
+              gesture = null;
+            };
+            button.addEventListener("pointerup", finish);
+            button.addEventListener("pointercancel", finish);
+            button.addEventListener("click", (event) => {
+              if (!suppressClick) return;
+              event.preventDefault();
+              event.stopImmediatePropagation();
+            }, true);
+          };
+
+          if (!win.__leettutorMentorDragObserver) {
+            win.__leettutorMentorDragObserver = new win.MutationObserver(bind);
+            win.__leettutorMentorDragObserver.observe(doc.body, {childList: true, subtree: true});
+            win.addEventListener("resize", () => {
+              const root = doc.querySelector(".st-key-floating_mentor");
+              if (!root || !root.style.left) return;
+              const rect = root.getBoundingClientRect();
+              const point = clamp(root, rect.left, rect.top);
+              root.style.left = `${point.left}px`;
+              root.style.top = `${point.top}px`;
+              save(root);
+            });
+          }
+          bind();
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
+def set_mentor_client_state(
+    state: Literal["loading", "thinking", "answering", "done", "error"],
+    *,
+    anchor_id: str = "",
+) -> None:
+    """Reflect tutor activity on the floating button, browser title, and scroll."""
+
+    labels = {
+        "loading": "小沐加载中…",
+        "thinking": "小沐思考中…",
+        "answering": "小沐回答中…",
+        "done": "小沐导师",
+        "error": "小沐调用失败",
+    }
+    state_json = json.dumps(state)
+    label_json = json.dumps(labels[state], ensure_ascii=False)
+    anchor_json = json.dumps(anchor_id)
+    components.html(
+        f"""
+        <script>
+        (() => {{
+          const win = window.parent;
+          const doc = win.document;
+          const state = {state_json};
+          const label = {label_json};
+          const anchorId = {anchor_json};
+          const root = doc.querySelector(".st-key-floating_mentor");
+          const button = root?.querySelector("button");
+          if (state === "done" || state === "error") {{
+            root?.classList.remove("mentor-busy");
+            button?.removeAttribute("data-mentor-label");
+            button?.removeAttribute("aria-busy");
+            if (win.__leettutorMentorOriginalTitle) {{
+              doc.title = win.__leettutorMentorOriginalTitle;
+              delete win.__leettutorMentorOriginalTitle;
+            }}
+            win.__leettutorMentorScrollObserver?.disconnect();
+            delete win.__leettutorMentorScrollObserver;
+          }} else {{
+            if (!win.__leettutorMentorOriginalTitle) {{
+              win.__leettutorMentorOriginalTitle = doc.title;
+            }}
+            doc.title = `⏳ ${{label}} · LeetTutor`;
+            root?.classList.add("mentor-busy");
+            button?.setAttribute("data-mentor-label", label);
+            button?.setAttribute("aria-busy", "true");
+          }}
+
+          const target = anchorId ? doc.getElementById(anchorId) : null;
+          const scroll = (behavior = "smooth") => target?.scrollIntoView({{
+            behavior,
+            block: "center",
+          }});
+          if (target) {{
+            setTimeout(() => scroll(), 30);
+            setTimeout(() => scroll(), 180);
+            if (state !== "done" && state !== "error") {{
+              win.__leettutorMentorScrollObserver?.disconnect();
+              const observer = new win.MutationObserver(() => scroll("auto"));
+              const observationRoot = target.closest('[data-testid="stChatMessage"]')
+                || target.parentElement
+                || target;
+              observer.observe(observationRoot, {{
+                childList: true,
+                subtree: true,
+                characterData: true,
+              }});
+              win.__leettutorMentorScrollObserver = observer;
+            }}
+          }}
+        }})();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
 def configure_page() -> None:
     st.set_page_config(
         page_title="LeetTutor-Local",
@@ -114,6 +312,13 @@ def configure_page() -> None:
             z-index: 999990;
             filter: drop-shadow(0 12px 24px rgba(38, 51, 77, 0.20));
         }
+        .st-key-floating_mentor button {cursor: grab; touch-action: none;}
+        .st-key-floating_mentor.mentor-dragging,
+        .st-key-floating_mentor.mentor-dragging button {
+            cursor: grabbing !important;
+            transition: none !important;
+            user-select: none;
+        }
         .st-key-floating_mentor button {
             min-height: 62px;
             padding: 0.65rem 1.05rem 0.65rem 0.8rem;
@@ -131,6 +336,34 @@ def configure_page() -> None:
         }
         .st-key-floating_mentor button p {
             font-size: 1rem;
+        }
+        .st-key-floating_mentor.mentor-busy button {
+            border-color: rgba(108, 124, 255, 0.68);
+            background: linear-gradient(135deg, #f7f8ff 0%, #e8ecff 100%);
+            animation: mentor-pulse 1.4s ease-in-out infinite;
+        }
+        .st-key-floating_mentor.mentor-busy button p {display: none;}
+        .st-key-floating_mentor.mentor-busy button::before {
+            content: "";
+            width: 17px;
+            height: 17px;
+            flex: 0 0 17px;
+            border: 2px solid rgba(76, 92, 190, 0.24);
+            border-top-color: #596aff;
+            border-radius: 999px;
+            animation: mentor-spin 0.85s linear infinite;
+        }
+        .st-key-floating_mentor.mentor-busy button::after {
+            content: attr(data-mentor-label);
+            color: #313a73;
+            font-size: 0.95rem;
+            font-weight: 750;
+            white-space: nowrap;
+        }
+        @keyframes mentor-spin {to {transform: rotate(360deg);}}
+        @keyframes mentor-pulse {
+            0%, 100% {box-shadow: 0 10px 30px rgba(56, 76, 160, 0.18);}
+            50% {box-shadow: 0 12px 38px rgba(76, 96, 230, 0.38);}
         }
         [data-testid="stPopoverBody"] {
             width: min(390px, calc(100vw - 2rem));
@@ -153,6 +386,7 @@ def configure_page() -> None:
         """,
         unsafe_allow_html=True,
     )
+    install_mentor_client_controller()
 
 
 def initialize_state() -> AppConfig:
@@ -305,7 +539,7 @@ def _refresh_ollama_status(endpoint: str) -> OllamaRuntimeStatus:
     return status
 
 
-def render_ollama_setup(endpoint: str) -> bool:
+def render_ollama_setup(endpoint: str, *, enable_vulkan: bool = False) -> bool:
     """First-run setup from official installer through a running local API."""
 
     if (
@@ -348,7 +582,7 @@ def render_ollama_setup(endpoint: str) -> bool:
             use_container_width=True,
         ):
             try:
-                start_ollama(status)
+                start_ollama(status, enable_vulkan=enable_vulkan)
             except RuntimeSetupError as exc:
                 st.error(str(exc))
             else:
@@ -426,10 +660,18 @@ def render_model_center(
                 + "，但官方 Ollama 在 Intel macOS 上不会使用这块 AMD GPU；"
                 "当前推理仍走 CPU，这部分显存不会计入模型预算。"
             )
+        elif profile.ollama_vulkan_required:
+            st.info(
+                "检测到 Windows AMD/Intel 显卡。应用从这里启动 Ollama 时会自动设置 "
+                "`OLLAMA_VULKAN=1` 使用实验性 Vulkan 加速；如果 Ollama 已在后台运行，"
+                "请先完全退出它，再回到这里启动。"
+            )
 
         ollama_ready = False
         if provider == "Ollama":
-            ollama_ready = render_ollama_setup(endpoint)
+            ollama_ready = render_ollama_setup(
+                endpoint, enable_vulkan=profile.ollama_vulkan_required
+            )
             st.divider()
         elif not profile.lm_studio_supported:
             st.warning("LM Studio 官方目前不支持 Intel Mac；这台设备建议改用 Ollama。")
@@ -555,7 +797,7 @@ def render_sidebar(
             model = st.text_input(
                 "Model Name",
                 key="model_manual",
-                placeholder="例如 deepseek-r1:8b",
+                placeholder="例如 qwen3.5:9b",
             ).strip()
         else:
             model = selected_model
@@ -574,7 +816,17 @@ def render_sidebar(
         ):
             st.warning(
                 "当前是 CPU-only 推理，这个模型会明显偏慢。导师对练建议改用 "
-                "`deepseek-r1:8b`；大模型可以留给不赶时间的深度 Review。"
+                "`qwen3.5:9b`；大模型可以留给不赶时间的深度 Review。"
+            )
+        if (
+            model
+            and "qwen3.6" in model.casefold()
+            and (profile.vram_gb or 0) <= 8
+        ):
+            st.warning(
+                "Qwen 3.6 27B 的 Q4 文件约 17 GB，无法完整放进 8 GB 显存；"
+                "它会使用 CPU + GPU 混合推理。可运行，但实时导师体验通常不如 "
+                "Qwen 3.5 9B。"
             )
 
         st.divider()
@@ -628,6 +880,8 @@ def render_sidebar(
                 key=max_tokens_key,
             )
         )
+        if reasoning_effort != "none" and max_tokens < 1024:
+            st.warning("已开启深度思考；建议把最大输出 Tokens 提高到至少 1024。")
 
         with st.expander("角色 Prompt（可编辑）"):
             st.text_area("算法面试官", height=260, key="prompt_algorithm")
@@ -728,10 +982,17 @@ def submit_to_tutor(
 ) -> None:
     history: list[HistoryItem] = st.session_state[f"{mode}_messages"]
     history.append({"role": "user", "content": content, "display": display})
+    anchor_id = f"mentor-response-{mode}-{len(history)}"
 
     with st.chat_message("user"):
         st.markdown(display)
     with st.chat_message("assistant"):
+        st.markdown(
+            f'<span id="{html.escape(anchor_id, quote=True)}" '
+            'class="mentor-response-anchor"></span>',
+            unsafe_allow_html=True,
+        )
+        set_mentor_client_state("loading", anchor_id=anchor_id)
         activity = st.status(
             f"正在连接 {settings.provider} 并加载 {model or '模型'}…首次加载可能需要几十秒。",
             expanded=False,
@@ -740,42 +1001,53 @@ def submit_to_tutor(
         complete = ""
         thinking_chars = 0
         answer_started = False
+        thinking_started = False
         last_activity_update = time.monotonic()
         try:
-            client = LocalLLMClient(settings)
-            api_messages = [
-                {"role": "system", "content": config.prompts[mode]},
-                *[
-                    {"role": item["role"], "content": item["content"]}
-                    for item in history[-24:]
-                ],
-            ]
-            for delta in client.stream_chat(
-                messages=api_messages,
-                model=model,
-                temperature=temperature,
-                top_p=top_p,
-                reasoning_effort=reasoning_effort,
-                max_tokens=max_tokens,
-            ):
-                if delta.kind == "thinking":
-                    thinking_chars += len(delta.content)
-                    now = time.monotonic()
-                    if now - last_activity_update >= 1.0:
-                        activity.update(
-                            label=f"模型正在思考…已产生约 {thinking_chars} 个思考字符",
-                            state="running",
-                        )
-                        last_activity_update = now
-                else:
-                    complete += delta.content
-                    if not answer_started:
-                        activity.update(label="模型正在回答…", state="running")
-                        answer_started = True
-                    placeholder.markdown(complete + "▌")
+            with st.spinner("小沐正在加载模型并思考…", show_time=True):
+                client = LocalLLMClient(settings)
+                api_messages = [
+                    {"role": "system", "content": config.prompts[mode]},
+                    *[
+                        {"role": item["role"], "content": item["content"]}
+                        for item in history[-24:]
+                    ],
+                ]
+                for delta in client.stream_chat(
+                    messages=api_messages,
+                    model=model,
+                    temperature=temperature,
+                    top_p=top_p,
+                    reasoning_effort=reasoning_effort,
+                    max_tokens=max_tokens,
+                ):
+                    if delta.kind == "thinking":
+                        thinking_chars += len(delta.content)
+                        if not thinking_started:
+                            set_mentor_client_state("thinking", anchor_id=anchor_id)
+                            activity.update(label="模型正在思考…", state="running")
+                            thinking_started = True
+                        now = time.monotonic()
+                        if now - last_activity_update >= 1.0:
+                            activity.update(
+                                label=(
+                                    "模型正在思考…已产生约 "
+                                    f"{thinking_chars} 个思考字符"
+                                ),
+                                state="running",
+                            )
+                            last_activity_update = now
+                    else:
+                        complete += delta.content
+                        if not answer_started:
+                            set_mentor_client_state("answering", anchor_id=anchor_id)
+                            activity.update(label="模型正在回答…", state="running")
+                            answer_started = True
+                        placeholder.markdown(complete + "▌")
         except LocalLLMError as exc:
             placeholder.empty()
             activity.update(label="模型调用失败", state="error")
+            set_mentor_client_state("error", anchor_id=anchor_id)
             st.error(str(exc))
             st.caption("你的问题已经保留，可以修正侧边栏配置后再次发送。")
             return
@@ -783,6 +1055,7 @@ def submit_to_tutor(
         placeholder.empty()
         if not complete.strip():
             activity.update(label="没有收到最终答案", state="error")
+            set_mentor_client_state("error", anchor_id=anchor_id)
             if thinking_chars:
                 st.warning(
                     "模型把本次输出额度都用在了思考阶段。请把“深度思考”设为关闭，"
@@ -796,19 +1069,14 @@ def submit_to_tutor(
             complete, render_mermaid=(mode == "system_design")
         )
         history.append({"role": "assistant", "content": complete})
+        set_mentor_client_state("done", anchor_id=anchor_id)
 
 
 def render_floating_mentor(
     *,
     mode: Literal["algorithm", "system_design"],
-    settings: ProviderSettings,
     model: str,
-    temperature: float,
-    top_p: float,
-    reasoning_effort: str,
-    max_tokens: int,
-    config: AppConfig,
-) -> None:
+) -> tuple[str, str] | None:
     """Render a fixed tutor character backed by the existing conversation."""
 
     history: list[HistoryItem] = st.session_state[f"{mode}_messages"]
@@ -899,18 +1167,8 @@ def render_floating_mentor(
                             "这是悬浮架构导师对话。请延续现有面试记录，一次只推进一个关键点。\n\n"
                             f"当前需求：{requirement}\n我的问题：{requested_question}"
                         )
-                    submit_to_tutor(
-                        mode=mode,
-                        content=content,
-                        display=f"向小沐提问：{requested_question}",
-                        settings=settings,
-                        model=model,
-                        temperature=temperature,
-                        top_p=top_p,
-                        reasoning_effort=reasoning_effort,
-                        max_tokens=max_tokens,
-                        config=config,
-                    )
+                    return content, f"向小沐提问：{requested_question}"
+    return None
 
 
 def _run_result_text(result: dict[str, object] | None = None) -> str:
@@ -1361,15 +1619,9 @@ def render_algorithm_mode(
     if review_request:
         pending = review_request
 
-    render_floating_mentor(
+    floating_pending = render_floating_mentor(
         mode="algorithm",
-        settings=settings,
         model=model,
-        temperature=temperature,
-        top_p=top_p,
-        reasoning_effort=reasoning_effort,
-        max_tokens=max_tokens,
-        config=config,
     )
 
     st.markdown("#### 导师对练记录")
@@ -1384,6 +1636,8 @@ def render_algorithm_mode(
             _workspace_request(chat_prompt, trigger="代码工作区对话"),
             chat_prompt,
         )
+    if floating_pending:
+        pending = floating_pending
 
     if pending:
         submit_to_tutor(
@@ -1429,15 +1683,9 @@ def render_system_design_mode(
                 f"开始系统设计：**{requirement.strip()}**",
             )
 
-    render_floating_mentor(
+    floating_pending = render_floating_mentor(
         mode="system_design",
-        settings=settings,
         model=model,
-        temperature=temperature,
-        top_p=top_p,
-        reasoning_effort=reasoning_effort,
-        max_tokens=max_tokens,
-        config=config,
     )
 
     st.markdown("#### 架构对练")
@@ -1449,6 +1697,8 @@ def render_system_design_mode(
     )
     if chat_prompt:
         pending = (chat_prompt, chat_prompt)
+    if floating_pending:
+        pending = floating_pending
 
     if pending:
         submit_to_tutor(

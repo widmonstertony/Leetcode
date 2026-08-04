@@ -1,9 +1,12 @@
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 from leettutor.runtime_manager import (
+    OllamaRuntimeStatus,
     download_official_installer,
     installer_for_system,
     is_local_endpoint,
+    start_ollama,
 )
 
 
@@ -45,3 +48,17 @@ def test_installer_download_is_atomic(tmp_path: Path, monkeypatch) -> None:
     assert updates[-1].path == tmp_path / "Ollama.dmg"
     assert updates[-1].fraction == 1.0
     assert (tmp_path / "Ollama.dmg").read_bytes() == b"abcdef"
+
+
+def test_windows_ollama_start_can_enable_vulkan(tmp_path: Path) -> None:
+    executable = tmp_path / "ollama.exe"
+    executable.write_bytes(b"")
+    status = OllamaRuntimeStatus(True, True, False, executable=executable)
+    popen = Mock()
+    with patch("leettutor.runtime_manager.platform.system", return_value="Windows"), patch(
+        "leettutor.runtime_manager.subprocess.Popen", popen
+    ):
+        start_ollama(status, enable_vulkan=True)
+
+    kwargs = popen.call_args.kwargs
+    assert kwargs["env"]["OLLAMA_VULKAN"] == "1"

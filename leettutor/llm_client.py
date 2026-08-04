@@ -129,6 +129,20 @@ class LocalLLMClient:
                 "max_tokens": max_tokens,
                 "stream": True,
             }
+            folded_model = model.casefold()
+            if reasoning_effort != "none":
+                # LM Studio 0.4.8+ accepts reasoning_effort on its
+                # OpenAI-compatible chat-completions endpoint.
+                request["reasoning_effort"] = reasoning_effort
+            if "qwen3" in folded_model:
+                # Qwen 3.x chat templates expose a boolean thinking switch.
+                # Passing it alongside reasoning_effort keeps both recent and
+                # older llama.cpp-based LM Studio runtimes compatible.
+                request["extra_body"] = {
+                    "chat_template_kwargs": {
+                        "enable_thinking": reasoning_effort != "none"
+                    }
+                }
             stream = self._client.chat.completions.create(
                 **request,
             )

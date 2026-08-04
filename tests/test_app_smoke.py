@@ -12,6 +12,16 @@ def test_app_starts_without_contacting_a_model() -> None:
     assert "适合这台设备的模型" in [item.label for item in app.selectbox]
 
 
+def test_chat_submission_renders_activity_ui_without_a_selected_model() -> None:
+    app_path = Path(__file__).resolve().parents[1] / "app.py"
+    app = AppTest.from_file(str(app_path)).run(timeout=20)
+    app.chat_input[0].set_value("先提示我下一步").run(timeout=20)
+
+    assert not app.exception
+    assert any("模型调用失败" in status.label for status in app.status)
+    assert any("先提示我下一步" in item.value for item in app.markdown)
+
+
 def test_streamlit_developer_shortcuts_are_disabled() -> None:
     project_root = Path(__file__).resolve().parents[1]
     config = (project_root / ".streamlit" / "config.toml").read_text(

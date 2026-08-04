@@ -157,7 +157,9 @@ def open_installer(path: Path) -> None:
         raise RuntimeSetupError(f"无法打开 Ollama 安装器：{exc}") from exc
 
 
-def start_ollama(status: OllamaRuntimeStatus) -> None:
+def start_ollama(
+    status: OllamaRuntimeStatus, *, enable_vulkan: bool = False
+) -> None:
     """Start an existing Ollama installation without invoking a shell."""
 
     if status.running:
@@ -173,9 +175,13 @@ def start_ollama(status: OllamaRuntimeStatus) -> None:
                 subprocess.Popen(["open", str(app)])  # noqa: S603
                 return
         if status.executable:
+            environment = os.environ.copy()
+            if enable_vulkan:
+                environment["OLLAMA_VULKAN"] = "1"
             kwargs: dict[str, object] = {
                 "stdout": subprocess.DEVNULL,
                 "stderr": subprocess.DEVNULL,
+                "env": environment,
             }
             if platform.system() == "Windows":
                 kwargs["creationflags"] = (

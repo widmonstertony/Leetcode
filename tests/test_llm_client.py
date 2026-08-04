@@ -51,6 +51,41 @@ def test_list_and_stream_with_openai_compatible_shape() -> None:
     ) == [ChatDelta("content", "hi")]
 
 
+def test_lm_studio_receives_qwen_thinking_controls() -> None:
+    class Value:
+        def __init__(self, **values):
+            self.__dict__.update(values)
+
+    requests: list[dict[str, object]] = []
+
+    class FakeClient:
+        def __init__(self) -> None:
+            self.models = Value(list=lambda: Value(data=[]))
+            self.chat = Value(
+                completions=Value(
+                    create=lambda **kwargs: requests.append(kwargs) or iter([])
+                )
+            )
+
+    client = LocalLLMClient(
+        ProviderSettings("LM Studio", "http://localhost:1234/v1"),
+        client_factory=lambda **_kwargs: FakeClient(),
+    )
+    list(
+        client.stream_chat(
+            messages=[{"role": "user", "content": "hello"}],
+            model="qwen3.5:9b",
+            temperature=0.6,
+            top_p=0.95,
+            reasoning_effort="medium",
+        )
+    )
+    assert requests[0]["reasoning_effort"] == "medium"
+    assert requests[0]["extra_body"] == {
+        "chat_template_kwargs": {"enable_thinking": True}
+    }
+
+
 def test_stream_exposes_reasoning_as_status_event(monkeypatch) -> None:
     class Value:
         def __init__(self, **values):

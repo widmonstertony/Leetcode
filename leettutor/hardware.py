@@ -21,6 +21,7 @@ class HardwareProfile:
     vram_gb: float | None = None
     apple_silicon: bool = False
     ollama_gpu_supported: bool = False
+    ollama_vulkan_required: bool = False
 
     @property
     def summary(self) -> str:
@@ -29,6 +30,8 @@ class HardwareProfile:
             gpu = self.gpu
             if self.vram_gb:
                 gpu += f" · {self.vram_gb:.0f} GB VRAM"
+            if self.ollama_vulkan_required:
+                gpu += " · Ollama Vulkan（实验）"
             parts.append(gpu)
         return " · ".join(parts)
 
@@ -52,14 +55,57 @@ class ModelRecommendation:
 
 
 MODEL_CATALOG: tuple[ModelRecommendation, ...] = (
-    ModelRecommendation("deepseek-r1:1.5b", "DeepSeek R1 1.5B", 1.1, 4, "低内存入门、提示与复杂度分析", "deepseek-r1-distill-qwen-1.5b"),
-    ModelRecommendation("deepseek-r1:8b", "DeepSeek R1 8B", 5.2, 8, "刷题导师的速度/质量平衡", "deepseek-r1-0528-qwen3-8b"),
-    ModelRecommendation("deepseek-r1:14b", "DeepSeek R1 14B", 9.0, 16, "更稳定的推理和边界分析", "deepseek-r1-distill-qwen-14b"),
-    ModelRecommendation("qwen3-coder:30b", "Qwen3 Coder 30B", 19, 28, "代码 Review 与仓库级理解", "qwen3-coder-30b-a3b-instruct"),
-    ModelRecommendation("qwen3.6:27b", "Qwen3.6 27B", 17, 28, "算法与系统设计综合能力", "qwen3.6-27b"),
-    ModelRecommendation("deepseek-r1:32b", "DeepSeek R1 32B", 20, 32, "高质量复杂推理", "deepseek-r1-distill-qwen-32b"),
-    ModelRecommendation("deepseek-r1:70b", "DeepSeek R1 70B", 43, 60, "大内存设备的高质量推理", "deepseek-r1-distill-llama-70b"),
+    ModelRecommendation(
+        "qwen3.5:4b",
+        "Qwen 3.5 4B",
+        3.4,
+        6,
+        "低显存快速导师，适合逐步提示和日常对话",
+        "qwen3.5-4b",
+    ),
+    ModelRecommendation(
+        "qwen3:8b",
+        "Qwen 3 8B",
+        5.2,
+        8,
+        "兼容性成熟的轻量算法与中文推理",
+        "qwen3-8b",
+    ),
+    ModelRecommendation(
+        "qwen3.5:9b",
+        "Qwen 3.5 9B（首选）",
+        6.6,
+        12,
+        "8 GB 显卡的最佳综合档：中文、算法、代码与响应速度平衡",
+        "qwen3.5-9b",
+    ),
+    ModelRecommendation(
+        "deepseek-r1:8b",
+        "DeepSeek R1 8B",
+        5.2,
+        12,
+        "困难题的长推理备选；需要开启思考并提高输出额度",
+        "deepseek-r1-0528-qwen3-8b",
+    ),
+    ModelRecommendation(
+        "qwen3.6:27b",
+        "Qwen 3.6 27B（慢速进阶）",
+        17,
+        28,
+        "质量更高，但 8 GB 显卡只能部分卸载，适合不赶时间的深度 Review",
+        "qwen3.6-27b",
+    ),
+    ModelRecommendation(
+        "qwen3.6:35b",
+        "Qwen 3.6 35B-A3B（大内存）",
+        24,
+        32,
+        "MoE 进阶模型；32 GB 机器余量很小，不建议作为常驻导师",
+        "qwen3.6-35b-a3b",
+    ),
 )
+
+_MODELS_BY_ID = {model.ollama_id: model for model in MODEL_CATALOG}
 
 
 def detect_hardware() -> HardwareProfile:
@@ -70,9 +116,18 @@ def detect_hardware() -> HardwareProfile:
     apple_silicon = system == "Darwin" and machine.lower() in {"arm64", "aarch64"}
     gpu, vram = _detect_nvidia_gpu()
     ollama_gpu_supported = bool(gpu)
+    ollama_vulkan_required = False
     if apple_silicon and not gpu:
         gpu = "Apple Silicon（统一内存）"
         ollama_gpu_supported = True
+    elif system == "Windows" and not gpu:
+        gpu, vram = _detect_windows_gpu()
+        gpu_name = gpu.casefold()
+        if "amd" in gpu_name or "radeon" in gpu_name or "intel" in gpu_name:
+            # Ollama exposes additional Windows GPU support through its Vulkan
+            # backend. It is experimental, so keep that fact visible in the UI.
+            ollama_gpu_supported = True
+            ollama_vulkan_required = True
     elif system == "Darwin" and not gpu:
         # Intel Macs can contain capable AMD discrete GPUs with dedicated VRAM,
         # but Ollama's official macOS acceleration path targets Apple Silicon.
@@ -88,32 +143,26 @@ def detect_hardware() -> HardwareProfile:
         vram_gb=vram,
         apple_silicon=apple_silicon,
         ollama_gpu_supported=ollama_gpu_supported,
+        ollama_vulkan_required=ollama_vulkan_required,
     )
 
 
 def recommend_models(profile: HardwareProfile) -> list[ModelRecommendation]:
-    """Return balanced, faster, and stretch options for the detected memory."""
+    """Return a responsive default, a faster option, and a quality stretch."""
 
-    if profile.apple_silicon:
-        budget = profile.memory_gb * 0.75
-    elif profile.ollama_gpu_supported and profile.vram_gb:
-        # Allows modest CPU offload without claiming all system RAM is available.
-        budget = max(profile.vram_gb, profile.memory_gb * 0.55)
+    accelerated_memory = profile.memory_gb if profile.apple_silicon else (profile.vram_gb or 0)
+    if profile.memory_gb >= 12 and (
+        accelerated_memory >= 7 or (not profile.ollama_gpu_supported and profile.memory_gb >= 16)
+    ):
+        model_ids = ["qwen3.5:9b", "qwen3.5:4b"]
     else:
-        # CPU-only inference becomes frustrating before memory is exhausted.
-        # Keep the balanced recommendation at 8B and expose larger models as
-        # stretch options instead.
-        budget = min(profile.memory_gb * 0.55, 12.0)
+        model_ids = ["qwen3.5:4b", "qwen3:8b"]
 
-    fitting = [model for model in MODEL_CATALOG if model.minimum_memory_gb <= budget]
-    primary = fitting[-1] if fitting else MODEL_CATALOG[0]
-    primary_index = MODEL_CATALOG.index(primary)
-    indexes = [primary_index]
-    if primary_index > 0:
-        indexes.append(primary_index - 1)
-    if primary_index + 1 < len(MODEL_CATALOG):
-        indexes.append(primary_index + 1)
-    return [MODEL_CATALOG[index] for index in indexes]
+    if profile.memory_gb >= 28:
+        model_ids.append("qwen3.6:27b")
+    else:
+        model_ids.append("deepseek-r1:8b")
+    return [_MODELS_BY_ID[model_id] for model_id in model_ids]
 
 
 def _total_memory_bytes() -> int:
@@ -147,6 +196,89 @@ def _detect_nvidia_gpu() -> tuple[str, float | None]:
     command = shutil.which("nvidia-smi")
     if not command:
         return "", None
+    try:
+        result = subprocess.run(
+            [
+                command,
+                "--query-gpu=name,memory.total",
+                "--format=csv,noheader,nounits",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=4,
+            check=False,
+        )
+        first = result.stdout.splitlines()[0]
+        name, memory_mb = (part.strip() for part in first.rsplit(",", 1))
+        return name, float(memory_mb) / 1024
+    except (OSError, ValueError, IndexError, subprocess.TimeoutExpired):
+        return "", None
+
+
+def _detect_windows_gpu() -> tuple[str, float | None]:
+    """Return the most useful Windows display adapter and its reported VRAM."""
+
+    shell = shutil.which("powershell") or shutil.which("pwsh")
+    if not shell:
+        return "", None
+    scripts = (
+        (
+            "Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue | "
+            'ForEach-Object { "$($_.Name)|$($_.AdapterRAM)" }'
+        ),
+        (
+            "Get-ItemProperty -Path "
+            "'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Video\\*\\0000' "
+            "-ErrorAction SilentlyContinue | Where-Object DriverDesc | "
+            'ForEach-Object { "$($_.DriverDesc)|" }'
+        ),
+    )
+    for script in scripts:
+        try:
+            result = subprocess.run(
+                [shell, "-NoProfile", "-NonInteractive", "-Command", script],
+                capture_output=True,
+                text=True,
+                timeout=8,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        detected = _parse_windows_gpu_output(result.stdout)
+        if detected[0]:
+            return detected
+    return "", None
+
+
+def _parse_windows_gpu_output(output: str) -> tuple[str, float | None]:
+    devices: list[tuple[str, float | None]] = []
+    known_vram = {"radeon pro 5600m": 8.0}
+    for raw_line in output.splitlines():
+        if "|" not in raw_line:
+            continue
+        raw_name, raw_bytes = raw_line.rsplit("|", 1)
+        name = raw_name.strip()
+        if not name:
+            continue
+        vram: float | None = None
+        try:
+            vram = int(raw_bytes.strip()) / (1024**3)
+        except ValueError:
+            pass
+        folded = name.casefold()
+        for marker, expected_vram in known_vram.items():
+            if marker in folded:
+                vram = expected_vram
+                break
+        devices.append((name, vram))
+    if not devices:
+        return "", None
+    discrete = [
+        device
+        for device in devices
+        if any(marker in device[0].casefold() for marker in ("nvidia", "amd", "radeon"))
+    ]
+    return max(discrete or devices, key=lambda device: device[1] or 0.0)
 
 
 def _detect_macos_gpu() -> tuple[str, float | None]:
@@ -187,23 +319,6 @@ def _detect_macos_gpu() -> tuple[str, float | None]:
     amd_devices = [device for device in devices if "AMD" in device[0].upper()]
     candidates = amd_devices or devices
     return max(candidates, key=lambda device: device[1] or 0.0)
-    try:
-        result = subprocess.run(
-            [
-                command,
-                "--query-gpu=name,memory.total",
-                "--format=csv,noheader,nounits",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=4,
-            check=False,
-        )
-        first = result.stdout.splitlines()[0]
-        name, memory_mb = (part.strip() for part in first.rsplit(",", 1))
-        return name, float(memory_mb) / 1024
-    except (OSError, ValueError, IndexError, subprocess.TimeoutExpired):
-        return "", None
 
 
 def _run_first_line(command: list[str]) -> str:
