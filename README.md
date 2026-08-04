@@ -1,110 +1,143 @@
-# LeetCode — Python Reboot
+# LeetTutor-Local
 
-这个仓库现在以 **Python 重刷**为主，同时继续保留和维护 Java 版本。不同语言各自放在独立目录，不再让根目录被数百个题解文件占满。
+本地互动式 LeetCode 与系统设计学习助手。导师会根据薄弱项和练习进度安排下一题；界面运行在浏览器中，可以直接导入题目、写 Python、跑自定义测试，并把当前代码现场交给本地 AI。代码仍保存在这个仓库里，也可以继续用 VS Code 编辑。AI 请求只发往你配置的 Ollama 或 LM Studio 端点。
 
-## 从这里开始
+## 最快启动
 
-| 入口 | 用途 |
-| --- | --- |
-| [python/](python/) | 当前和之后的 Python 解答 |
-| [java/](java/) | Java 解答 |
-| [java/oa/](java/oa/) | Amazon、Google OA |
-| [sql/](sql/) | SQL 解答 |
-| [Python 重刷手册](docs/PYTHON_PLAYBOOK.md) | 题型判断、背诵模板、重刷路线 |
-| [BST 旧笔记](docs/BST.md) | 原 BST 笔记 |
+先安装 Python 3.10+。Ollama 本体和模型都可以随后在 LeetTutor 页面内安装。
 
-## 目录结构
+- macOS：双击 `run.command`。
+- Windows：双击 `run.bat`。
+- 终端：`python3 scripts/launch.py`。
+- 同时打开 VS Code：`python3 scripts/launch.py --vscode`。
+
+首次运行会自动创建 `.venv`、安装依赖并打开浏览器。以后只有 `requirements.txt` 变化时才会重新安装。
+
+应用使用 Streamlit 的 minimal 工具栏模式，避免本地开发模式把键盘 `C` 注册为 “Clear cache” 而干扰网页复制。
+
+> 推荐组合：日常刷题直接使用浏览器里的刷题 IDE；需要断点调试、复杂工程导航或 Git 操作时再打开 VS Code。
+
+## 两种训练模式
+
+### Algorithm Mode
+
+- 【导师给我下一题】会在二分、栈、优先队列和 DP 路线中自动补弱，并自动导入完整题面、Python 模板、方法名与样例参数；【开始导师引导】同样会补齐尚未导入的题目。
+- 每道题说明本轮训练目标；第一轮诊断问题由本地课程引擎立即显示，不等待模型，再根据你的回答调用 AI 逐层提示。
+- “已掌握 / 需要复习 / 练习次数”保存在本地 `study_progress.json`。
+- 面试官先判断时间/空间复杂度，再用问题引导优化。
+- 默认不交付完整答案；只有最新消息明确包含“求最优解代码”才会输出实现。
+- 【代码 Review】会检查隐藏 Bug、最小失败用例和边界条件。
+- 粘贴 `leetcode.com/problems/...` 或 `leetcode.cn/problems/...` 链接，可导入公开题面、Python 起始模板、方法名和样例参数。
+- 浏览器内可以直接编辑 `class Solution`，使用 JSON 描述多个测试并查看实际输出、断言结果、打印和 traceback。
+- Python 在受限的独立子进程中运行：默认 3 秒超时，阻止常见文件、网络和子进程操作；macOS/Linux 还会施加内存和 CPU 资源上限。它不是执行陌生代码的强安全沙箱，只应用于自己的题解。
+- 【运行并让导师分析】【我卡住了】【根据现有代码继续引导】都会自动附带当前题面、完整编辑器代码、测试用例和最近运行结果。
+- 普通聊天同样默认读取当前代码现场，不必反复复制粘贴。
+- 页面右下角常驻“👩🏻‍🏫 小沐导师”：点击即可查看最近对话、直接提问，或使用“我卡住了 / 只提示下一步”。她与页面下方的导师对练共用同一段历史。
+- 可以载入、编辑并保存 `python/` 或 `java/` 中的题解；当前内置运行器先支持 Python，Java 可以继续保存和 AI Review。
+
+### 测试用例格式
+
+运行器会实例化 `Solution` 并调用“方法名”。如果不填写方法名，类中必须只有一个公开方法。测试区接受一个对象或对象数组：
+
+```json
+[
+  {
+    "args": [[-1, 0, 3, 5, 9, 12], 9],
+    "expected": 4
+  },
+  {
+    "args": [[-1, 0, 3, 5, 9, 12], 2],
+    "expected": -1
+  }
+]
+```
+
+`args` 是位置参数，另可使用 `kwargs`；省略 `expected` 时只展示实际返回值。当前适合数字、字符串、数组、矩阵和普通 JSON 数据。树、链表等 LeetCode 特殊类型暂时仍建议在代码中自行构造。
+
+“连接 LeetCode”目前指读取公开题目与跳转到官方提交页，不会收集或保存你的 LeetCode Cookie。点击【在 LeetCode 打开 / 提交】即可使用浏览器中已有的登录状态提交。
+
+### System Design Mode
+
+- 从 QPS、DAU、峰值和读写比开始容量估算。
+- 对 SPOF、缓存问题和高并发进行至少三轮压力测试。
+- 模型返回的 fenced `mermaid` 代码块会直接渲染成架构图。
+
+## 本地模型设置
+
+侧边栏会读取系统类型、RAM、Apple Silicon / Intel 和 NVIDIA VRAM，按保守内存预算给出平衡、快速和进阶模型。推荐仅是估算：上下文越长，额外内存越多。
+
+- Ollama：如果尚未安装，页面会从官方地址下载安装器并交给 macOS/Windows 确认；安装后可自动启动服务，再一键下载推荐模型。
+- LM Studio：显示对应搜索词、`lms get` 命令和官方下载安装入口。
+- Intel Mac：应用会提示改用 Ollama，因为 LM Studio 官方目前不支持 Intel Mac。
+
+首次使用 Ollama 的完整顺序是：`安装 Ollama → 完成系统安装向导 → 重新检测/启动 Ollama → 一键下载模型 → 刷新模型`。安装器必须经过系统界面确认，应用不会静默绕过 macOS Gatekeeper 或 Windows 签名检查。
+
+下载完成后点击“检测服务并刷新模型”，也可以手动填写模型名。
+
+| Provider | 默认地址 | 启动提示 |
+| --- | --- | --- |
+| Ollama | `http://localhost:11434` | 安装模型后运行 `ollama serve` |
+| LM Studio | `http://localhost:1234/v1` | 在 Developer / Local Server 中加载模型并启动服务 |
+
+Ollama 的根地址会自动转换为 OpenAI 兼容的 `/v1` 地址。若服务未启动、超时、模型不存在或请求格式不兼容，界面会显示对应提示，不会直接崩溃。
+
+刷题 Temperature 默认 `0.2`，系统设计默认 `0.5`；两者和 Top P、Prompt、Endpoint、模型名都可以在侧边栏修改并保存。
+
+算法导师默认关闭 DeepSeek/Qwen 的长思考，并限制为 384 个输出 token，避免 CPU 设备在最终答案出现前沉默数分钟。侧边栏可手动开启低/中/高思考；界面会分别显示“加载模型”“正在思考”和“正在回答”。CPU-only 的 Intel Mac 默认推荐 8B，14B 只作为慢速进阶选项。
+
+## 配置
+
+点击侧边栏“保存设置”会生成本地 `config.json`。它和 `.env` 都已被 Git 忽略。
+
+如需环境变量覆盖：
+
+```bash
+cp .env.example .env
+```
+
+支持：`LEETTUTOR_PROVIDER`、`LEETTUTOR_MODEL`、`LEETTUTOR_OLLAMA_URL`、`LEETTUTOR_LM_STUDIO_URL` 和 `LEETTUTOR_API_KEY`。
+
+## 项目结构
 
 ```text
 Leetcode/
-├── README.md
-├── python/                    # 当前重刷重点
-│   └── <题号>.<题名>.py
-├── java/
-│   ├── <题号>.<题名>.java
-│   └── oa/                    # Amazon / Google OA
-├── sql/
-│   └── <题号>.<题名>.sql
-└── docs/
-│   ├── PYTHON_PLAYBOOK.md     # 完整模板和旧题笔记
-│   └── BST.md
+├── app.py                     # Streamlit 核心入口
+├── leettutor/                 # 导师、LeetCode 导题、代码运行与模型适配层
+├── scripts/launch.py          # 跨平台启动器
+├── run.command / run.bat      # macOS / Windows 一键启动
+├── tests/                     # 不依赖本地模型的测试
+├── python/                    # Python 重刷题解
+├── java/                      # Java 题解，继续正常维护
+├── sql/                       # SQL 题解
+└── docs/                      # 背诵模板与旧笔记
 ```
 
-## 当前 Python 进度
+## 刷题资料入口
 
-| 题目 | 主题 | 状态 |
-| --- | --- | --- |
-| [1. Two Sum](python/1.two-sum.py) | Hash Map | 已完成 |
-| [49. Group Anagrams](python/49.group-anagrams.py) | Hash / Counting | 已完成 |
-| [128. Longest Consecutive Sequence](python/128.longest-consecutive-sequence.py) | Set | 已完成 |
-| [347. Top K Frequent Elements](python/347.top-k-frequent-elements.py) | Hash + Heap | 已完成 |
-| [29. Divide Two Integers](python/29.divide-two-integers.py) | Bit / Math | 待完成 |
+- [Python 重刷手册](docs/PYTHON_PLAYBOOK.md)：二分、Stack、Heap、DP 模板与路线。
+- [Python 题解](python/)：今后的主要重刷目录。
+- [Java 题解](java/)：旧解和后续 Java 版本都保留在这里，不是 archive。
+- [BST 笔记](docs/BST.md)
 
-以后新增 Python 解答放入 `python/`，命名继续使用：
-
-```text
-<题号>.<题名>.py
-```
-
-## 近期重刷优先级
-
-过去最容易混淆的是二分边界、Stack、Priority Queue 和 DP，因此先恢复这四类。
-
-| 顺序 | 专题 | 建议题目 | 过关标准 |
-| ---: | --- | --- | --- |
-| 1 | Binary Search | 35、34、275、378、410 | 固定 `while left < right`，循环后只看 `left` |
-| 2 | Stack | 20、496、503、84、42 | 写清栈里放谁、何时 pop、谁被结算 |
-| 3 | Priority Queue | 215、347、373、1167、295 | 写代码前说清堆顶含义和堆的大小 |
-| 4 | DP | 70、198、322、518、300、312、309 | 先写 State、Choice、Transition、Base、Order |
-
-完整路线见[重刷手册的 Python 重刷路线](docs/PYTHON_PLAYBOOK.md#python-重刷路线)。
-
-## 二分只背这一套
-
-个人约定：数组和整数二分尽量全部写成“收敛到唯一候选”。
+二分的个人统一约定仍是：
 
 ```python
-left, right = ...
-
 while left < right:
     mid = left + (right - left) // 2
-
     if mid_may_be_answer(mid):
         right = mid
     else:
         left = mid + 1
-
-# 固定：left == right
-candidate = left
+# 结束时只看 left；答案可能不存在时再验证
 ```
 
-记忆：
+## 开发与测试
 
-```text
-while 永远用 <
-MID 可能是答案：保留 mid
-MID 不可能是答案：扔掉 mid
-循环结束：看 left，不看 mid
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-dev.txt
+.venv/bin/python -m pytest
+.venv/bin/python -m streamlit run app.py
 ```
 
-- 要下标：返回或检查 `left`。
-- 要数组中的值：返回 `nums[left]`。
-- 答案可能不存在：先检查 `left` 是否越界、是否满足题意。
-- Lower bound：`mid_may_be_answer = nums[mid] >= target`。
-- Upper bound：`mid_may_be_answer = nums[mid] > target`。
-
-更完整的边界、Stack、Heap 和 DP 记忆卡见[四大重点背诵卡](docs/PYTHON_PLAYBOOK.md#四大重点背诵卡)。
-
-## 每道 Python 题只记录三件事
-
-```python
-# Pattern:
-# Invariant:
-# Mistake:
-```
-
-- `Pattern`：这题属于哪个模板。
-- `Invariant`：循环或递归过程中始终成立的事实。
-- `Mistake`：这次真正写错的一点。
-
-当天做完，第二天不看答案重写，第七天只默写骨架。
+Windows 把 `.venv/bin/python` 换成 `.venv\Scripts\python.exe`。
