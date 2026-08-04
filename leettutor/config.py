@@ -10,6 +10,7 @@ from typing import Any, Mapping
 
 from dotenv import load_dotenv
 
+from .metal_runtime import AMD_METAL_ENDPOINT, AMD_METAL_PROVIDER
 from .prompts import ALGORITHM_SYSTEM_PROMPT, SYSTEM_DESIGN_SYSTEM_PROMPT
 
 
@@ -31,6 +32,7 @@ class AppConfig:
         default_factory=lambda: {
             "Ollama": "http://localhost:11434",
             "LM Studio": "http://localhost:1234/v1",
+            AMD_METAL_PROVIDER: AMD_METAL_ENDPOINT,
         }
     )
     model: str = ""
@@ -183,6 +185,9 @@ def load_config(path: Path = DEFAULT_CONFIG_PATH) -> AppConfig:
     )
     config.endpoints["LM Studio"] = os.getenv(
         "LEETTUTOR_LM_STUDIO_URL", config.endpoints["LM Studio"]
+    )
+    config.endpoints[AMD_METAL_PROVIDER] = os.getenv(
+        "LEETTUTOR_AMD_METAL_URL", config.endpoints[AMD_METAL_PROVIDER]
     )
     config.model = os.getenv("LEETTUTOR_MODEL", config.model)
     config.api_key = os.getenv("LEETTUTOR_API_KEY", config.api_key)

@@ -1,6 +1,6 @@
 # LeetTutor-Local
 
-本地互动式 LeetCode 与系统设计学习助手。导师会根据薄弱项和练习进度安排下一题；界面运行在浏览器中，可以直接导入题目、写 Python、跑自定义测试，并把当前代码现场交给本地 AI。代码仍保存在这个仓库里，也可以继续用 VS Code 编辑。AI 请求只发往你配置的 Ollama 或 LM Studio 端点。
+本地互动式 LeetCode 与系统设计学习助手。导师会根据薄弱项和练习进度安排下一题；界面运行在浏览器中，可以直接导入题目、写 Python、跑自定义测试，并把当前代码现场交给本地 AI。代码仍保存在这个仓库里，也可以继续用 VS Code 编辑。AI 请求只发往本机 Ollama、LM Studio 或实验版 AMD Metal 端点。
 
 ## 最快启动
 
@@ -69,7 +69,7 @@
 
 - Ollama：如果尚未安装，页面会从官方地址下载安装器并交给 macOS/Windows 确认；安装后可自动启动服务，再一键下载推荐模型。
 - LM Studio：显示对应搜索词、`lms get` 命令和官方下载安装入口。
-- Intel Mac：应用会提示改用 Ollama，因为 LM Studio 官方目前不支持 Intel Mac。
+- Intel Mac：普通 Ollama 仍会走 CPU；这台 Radeon Pro 5600M 机器已增加实验版 AMD Metal Provider，见下方说明。
 - Windows AMD：应用会标记实验性 Vulkan 加速；由页面启动 Ollama 时自动注入 `OLLAMA_VULKAN=1`。已经在后台运行的 Ollama 需要先完全退出，再由页面重新启动。
 
 首次使用 Ollama 的完整顺序是：`安装 Ollama → 完成系统安装向导 → 重新检测/启动 Ollama → 一键下载模型 → 刷新模型`。安装器必须经过系统界面确认，应用不会静默绕过 macOS Gatekeeper 或 Windows 签名检查。
@@ -80,12 +80,19 @@
 | --- | --- | --- |
 | Ollama | `http://localhost:11434` | 安装模型后运行 `ollama serve` |
 | LM Studio | `http://localhost:1234/v1` | 在 Developer / Local Server 中加载模型并启动服务 |
+| AMD Metal（Intel Mac） | `http://127.0.0.1:11435/v1` | 双击 `run.command` 自动启动和关闭 |
 
 Ollama 的根地址会自动转换为 OpenAI 兼容的 `/v1` 地址。若服务未启动、超时、模型不存在或请求格式不兼容，界面会显示对应提示，不会直接崩溃。
 
 刷题 Temperature 默认 `0.2`，系统设计默认 `0.5`；两者和 Top P、Prompt、Endpoint、模型名都可以在侧边栏修改并保存。
 
 算法导师默认关闭长思考并限制为 768 个输出 token；系统设计默认低思考和 1536 token。侧边栏可手动开启低/中/高思考；界面会分别显示“加载模型”“正在思考”和“正在回答”。8 GB 显卡默认推荐 `qwen3.5:9b`；`qwen3.6:27b` 的 Q4 文件约 17 GB，只作为 28 GB 以上内存机器的慢速进阶选项。
+
+### 这台 Intel Mac 的 AMD Metal 实验后端
+
+`run.command` 会自动把 Ollama 已下载的 `qwen3.5:9b` 交给定制版 `llama.cpp`，以 `--no-mmap` 等价的私有 Metal buffer 完整装入 Radeon Pro 5600M 的 8 GB 显存，并在 `11435` 提供 OpenAI 兼容接口。关闭 LeetTutor 时，该服务也会一起退出；启动日志在 `.leettutor/amd-metal-server.log`。
+
+本机 Q4_K_M 实测：生成约 `19.94 token/s`，CPU 约 `2.97 token/s`，约快 `6.7×`。当前固定为 4096 上下文、单并发并关闭深度思考，避免模型把输出额度全部消耗在隐藏推理中；这是文本对练后端，不启用同一 GGUF 中的视觉部分。若侧边栏显示启动失败，先确认 `qwen3.5:9b` 已下载，并查看上述日志。
 
 ## 配置
 
@@ -97,7 +104,7 @@ Ollama 的根地址会自动转换为 OpenAI 兼容的 `/v1` 地址。若服务�
 cp .env.example .env
 ```
 
-支持：`LEETTUTOR_PROVIDER`、`LEETTUTOR_MODEL`、`LEETTUTOR_OLLAMA_URL`、`LEETTUTOR_LM_STUDIO_URL` 和 `LEETTUTOR_API_KEY`。
+支持：`LEETTUTOR_PROVIDER`、`LEETTUTOR_MODEL`、`LEETTUTOR_OLLAMA_URL`、`LEETTUTOR_LM_STUDIO_URL`、`LEETTUTOR_AMD_METAL_URL` 和 `LEETTUTOR_API_KEY`。
 
 ## 项目结构
 

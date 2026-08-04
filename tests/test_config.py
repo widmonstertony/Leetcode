@@ -9,6 +9,7 @@ def test_config_round_trip(tmp_path: Path, monkeypatch) -> None:
         "LEETTUTOR_MODEL",
         "LEETTUTOR_OLLAMA_URL",
         "LEETTUTOR_LM_STUDIO_URL",
+        "LEETTUTOR_AMD_METAL_URL",
         "LEETTUTOR_API_KEY",
     ):
         monkeypatch.delenv(name, raising=False)

@@ -185,8 +185,8 @@ def start_ollama(
             }
             if platform.system() == "Windows":
                 kwargs["creationflags"] = (
-                    subprocess.CREATE_NEW_PROCESS_GROUP
-                    | subprocess.DETACHED_PROCESS
+                    getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
+                    | getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
                 )
             else:
                 kwargs["start_new_session"] = True

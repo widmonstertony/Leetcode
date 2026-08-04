@@ -1,4 +1,4 @@
-"""OpenAI-compatible adapter for local Ollama and LM Studio servers."""
+"""OpenAI-compatible adapter for local model servers."""
 
 from __future__ import annotations
 
@@ -16,6 +16,8 @@ from openai import (
     BadRequestError,
     OpenAI,
 )
+
+from .metal_runtime import AMD_METAL_API_KEY, AMD_METAL_PROVIDER
 
 
 class LocalLLMError(RuntimeError):
@@ -72,7 +74,12 @@ class LocalLLMClient:
         except ValueError as exc:
             raise LocalLLMError(str(exc)) from exc
 
-        default_key = "ollama" if settings.provider == "Ollama" else "lm-studio"
+        if settings.provider == "Ollama":
+            default_key = "ollama"
+        elif settings.provider == AMD_METAL_PROVIDER:
+            default_key = AMD_METAL_API_KEY
+        else:
+            default_key = "lm-studio"
         self._client = client_factory(
             base_url=base_url,
             api_key=settings.api_key or default_key,
@@ -132,7 +139,7 @@ class LocalLLMClient:
                 "stream": True,
             }
             folded_model = model.casefold()
-            if reasoning_effort != "none":
+            if reasoning_effort != "none" and self.settings.provider != AMD_METAL_PROVIDER:
                 # LM Studio 0.4.8+ accepts reasoning_effort on its
                 # OpenAI-compatible chat-completions endpoint.
                 request["reasoning_effort"] = reasoning_effort
@@ -143,6 +150,7 @@ class LocalLLMClient:
                 request["extra_body"] = {
                     "chat_template_kwargs": {
                         "enable_thinking": reasoning_effort != "none"
+                        and self.settings.provider != AMD_METAL_PROVIDER
                     }
                 }
             stream = self._client.chat.completions.create(
@@ -263,6 +271,8 @@ class LocalLLMClient:
         if isinstance(exc, APIConnectionError):
             if provider == "Ollama":
                 hint = "请先启动 Ollama（可在终端运行 `ollama serve`），再确认地址和端口。"
+            elif provider == AMD_METAL_PROVIDER:
+                hint = "请用 run.command 启动应用，并查看 .leettutor/amd-metal-server.log。"
             else:
                 hint = "请在 LM Studio 的 Developer / Local Server 页面加载模型并启动服务器。"
             return LocalLLMError(f"无法连接到 {provider}。{hint}")

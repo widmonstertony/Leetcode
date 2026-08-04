@@ -7,6 +7,7 @@ import json
 import shutil
 import subprocess
 import time
+from dataclasses import replace
 from pathlib import Path
 from typing import Literal
 
@@ -42,6 +43,11 @@ from leettutor.leetcode_client import (
 )
 from leettutor.llm_client import LocalLLMClient, LocalLLMError, ProviderSettings
 from leettutor.mermaid import split_mermaid_blocks
+from leettutor.metal_runtime import (
+    AMD_METAL_MODEL,
+    AMD_METAL_PROVIDER,
+    endpoint_ready as metal_endpoint_ready,
+)
 from leettutor.model_manager import ModelDownloadError, pull_ollama_model
 from leettutor.prompts import (
     build_code_review_request,
@@ -420,6 +426,7 @@ def initialize_state() -> AppConfig:
         st.session_state.provider = config.provider
         st.session_state.endpoint_ollama = config.endpoints["Ollama"]
         st.session_state.endpoint_lm_studio = config.endpoints["LM Studio"]
+        st.session_state.endpoint_amd_metal = config.endpoints[AMD_METAL_PROVIDER]
         st.session_state.model_manual = config.model
         st.session_state.temperature_algorithm = config.temperatures["algorithm"]
         st.session_state.temperature_system_design = config.temperatures[
@@ -439,7 +446,9 @@ def initialize_state() -> AppConfig:
         ]
         st.session_state.prompt_algorithm = config.prompts["algorithm"]
         st.session_state.prompt_system_design = config.prompts["system_design"]
-        st.session_state.available_models = {"Ollama": [], "LM Studio": []}
+        st.session_state.available_models = {
+            provider: [] for provider in config.endpoints
+        }
         st.session_state.algorithm_messages = []
         st.session_state.system_design_messages = []
         try:
@@ -502,6 +511,14 @@ def initialize_state() -> AppConfig:
         st.session_state.app_config = config
 
     defaults = AppConfig()
+    config.endpoints.setdefault(
+        AMD_METAL_PROVIDER, defaults.endpoints[AMD_METAL_PROVIDER]
+    )
+    st.session_state.setdefault(
+        "endpoint_amd_metal", config.endpoints[AMD_METAL_PROVIDER]
+    )
+    st.session_state.setdefault("available_models", {})
+    st.session_state.available_models.setdefault(AMD_METAL_PROVIDER, [])
     st.session_state.setdefault("auto_tune", config.auto_tune)
     st.session_state.setdefault("context_tokens", config.context_tokens)
     st.session_state.setdefault(
@@ -685,6 +702,33 @@ def render_model_center(
         st.markdown("**检测到的设备**")
         st.caption(profile.summary)
         st.caption("推荐基于模型体积和保守内存预算估算；上下文越长，额外内存越多。")
+        if provider == AMD_METAL_PROVIDER:
+            if metal_endpoint_ready(endpoint):
+                st.success(
+                    f"Radeon 私有显存推理已启用：`{AMD_METAL_MODEL}` · "
+                    "实测生成约 20 token/s。"
+                )
+            else:
+                st.error(
+                    "AMD Metal 服务尚未运行。请退出后重新双击 run.command；"
+                    "若仍失败，查看 `.leettutor/amd-metal-server.log`。"
+                )
+            st.info(
+                "这个实验后端仅用于 Intel Mac 的独立 AMD 显卡；"
+                "它使用非 mmap 私有显存加载，并固定关闭深度思考，"
+                "避免输出额度耗尽却没有最终答案。"
+            )
+            st.selectbox(
+                "适合这台设备的模型",
+                ["Qwen 3.5 9B（Radeon 5600M 实测档）"],
+                key="recommended_model_amd_metal",
+                disabled=True,
+            )
+            st.code(
+                f"模型：{AMD_METAL_MODEL}\nEndpoint：{endpoint}",
+                language="text",
+            )
+            return
         if profile.gpu and not profile.ollama_gpu_supported:
             st.warning(
                 f"检测到 {profile.gpu}"
@@ -795,11 +839,13 @@ def render_sidebar(
     with st.sidebar:
         st.header("本地模型")
         provider = st.selectbox(
-            "API Provider", ["Ollama", "LM Studio"], key="provider"
+            "API Provider", list(config.endpoints), key="provider"
         )
-        endpoint_key = (
-            "endpoint_ollama" if provider == "Ollama" else "endpoint_lm_studio"
-        )
+        endpoint_key = {
+            "Ollama": "endpoint_ollama",
+            "LM Studio": "endpoint_lm_studio",
+            AMD_METAL_PROVIDER: "endpoint_amd_metal",
+        }[provider]
         endpoint = st.text_input("API Endpoint", key=endpoint_key)
 
         settings = provider_settings(provider, endpoint, config)
@@ -861,7 +907,12 @@ def render_sidebar(
                 "Qwen 3.5 9B。"
             )
 
-        generation = recommend_generation_defaults(profile, model)
+        generation_profile = (
+            replace(profile, ollama_gpu_supported=True)
+            if provider == AMD_METAL_PROVIDER
+            else profile
+        )
+        generation = recommend_generation_defaults(generation_profile, model)
         auto_tune = st.toggle(
             "根据硬件和模型自动调优",
             key="auto_tune",
@@ -879,7 +930,9 @@ def render_sidebar(
             st.session_state.context_tokens = generation.context_tokens
             st.session_state.reasoning_algorithm = generation.algorithm_reasoning
             st.session_state.reasoning_system_design = (
-                generation.system_design_reasoning
+                "none"
+                if provider == AMD_METAL_PROVIDER
+                else generation.system_design_reasoning
             )
             st.session_state.max_tokens_algorithm = (
                 generation.algorithm_max_tokens
@@ -887,11 +940,14 @@ def render_sidebar(
             st.session_state.max_tokens_system_design = (
                 generation.system_design_max_tokens
             )
-            offload_label = (
-                "CPU + GPU 混合卸载"
-                if generation.partially_offloaded
-                else "优先完整 GPU 加载"
-            )
+            if provider == AMD_METAL_PROVIDER:
+                offload_label = "Radeon 私有显存完整加载"
+            else:
+                offload_label = (
+                    "CPU + GPU 混合卸载"
+                    if generation.partially_offloaded
+                    else "优先完整 GPU 加载"
+                )
             st.caption(
                 f"自动档：{offload_label} · Timeout "
                 f"{generation.timeout_seconds:g}s · 上下文 "
@@ -951,6 +1007,8 @@ def render_sidebar(
             help="DeepSeek/Qwen 的 thinking 可能先运行数分钟；算法引导默认关闭。",
             disabled=auto_tune,
         )
+        if provider == AMD_METAL_PROVIDER:
+            st.caption("AMD Metal 实验后端固定关闭深度思考，优先保证直接返回答案。")
         max_tokens_key = (
             "max_tokens_algorithm"
             if mode == "algorithm"
