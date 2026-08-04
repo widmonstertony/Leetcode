@@ -1,0 +1,117 @@
+"""Cross-platform one-click launcher for LeetTutor-Local."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import shutil
+import subprocess
+import sys
+import venv
+from pathlib import Path
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+VENV_DIRECTORY = PROJECT_ROOT / ".venv"
+REQUIREMENTS = PROJECT_ROOT / "requirements.txt"
+DEPENDENCY_MARKER = VENV_DIRECTORY / ".leettutor-requirements.sha256"
+
+
+def virtualenv_python() -> Path:
+    if sys.platform == "win32":
+        return VENV_DIRECTORY / "Scripts" / "python.exe"
+    return VENV_DIRECTORY / "bin" / "python"
+
+
+def requirements_digest() -> str:
+    return hashlib.sha256(REQUIREMENTS.read_bytes()).hexdigest()
+
+
+def prepare_environment(*, skip_install: bool) -> Path:
+    python = virtualenv_python()
+    if not python.exists():
+        print("[LeetTutor] 首次运行：正在创建 .venv …")
+        venv.EnvBuilder(with_pip=True).create(VENV_DIRECTORY)
+
+    if skip_install:
+        return python
+
+    expected = requirements_digest()
+    installed = (
+        DEPENDENCY_MARKER.read_text(encoding="utf-8").strip()
+        if DEPENDENCY_MARKER.exists()
+        else ""
+    )
+    if installed != expected:
+        print("[LeetTutor] 正在安装或更新依赖 …")
+        subprocess.run(
+            [
+                str(python),
+                "-m",
+                "pip",
+                "install",
+                "--disable-pip-version-check",
+                "-r",
+                str(REQUIREMENTS),
+            ],
+            cwd=PROJECT_ROOT,
+            check=True,
+        )
+        DEPENDENCY_MARKER.write_text(expected + "\n", encoding="utf-8")
+    return python
+
+
+def maybe_open_vscode() -> None:
+    command = shutil.which("code")
+    if command:
+        subprocess.Popen([command, str(PROJECT_ROOT)])  # noqa: S603
+    else:
+        print("[LeetTutor] 未找到 VS Code 的 code 命令，跳过编辑器启动。")
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Launch LeetTutor-Local")
+    parser.add_argument(
+        "--skip-install",
+        action="store_true",
+        help="Skip dependency installation (intended for development only).",
+    )
+    parser.add_argument(
+        "--vscode", action="store_true", help="Also open the repository in VS Code."
+    )
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    try:
+        python = prepare_environment(skip_install=args.skip_install)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        print(f"[LeetTutor] 环境准备失败：{exc}", file=sys.stderr)
+        return 1
+
+    if args.vscode:
+        maybe_open_vscode()
+
+    print("[LeetTutor] 正在启动；浏览器会自动打开。按 Ctrl+C 停止。")
+    command = [
+        str(python),
+        "-m",
+        "streamlit",
+        "run",
+        str(PROJECT_ROOT / "app.py"),
+        "--server.address=localhost",
+        "--server.headless=false",
+        "--client.toolbarMode=minimal",
+    ]
+    try:
+        return subprocess.run(command, cwd=PROJECT_ROOT, check=False).returncode
+    except KeyboardInterrupt:
+        return 0
+    except OSError as exc:
+        print(f"[LeetTutor] 启动失败：{exc}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,22 @@
+{
+  "provider": "Ollama",
+  "endpoints": {
+    "Ollama": "http://localhost:11434",
+    "LM Studio": "http://localhost:1234/v1"
+  },
+  "model": "qwen3.5:9b",
+  "temperatures": {
+    "algorithm": 0.2,
+    "system_design": 0.5
+  },
+  "top_p": 0.9,
+  "timeout_seconds": 120,
+  "reasoning_efforts": {
+    "algorithm": "none",
+    "system_design": "low"
+  },
+  "max_tokens": {
+    "algorithm": 768,
+    "system_design": 1536
+  }
+}
