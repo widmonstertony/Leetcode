@@ -87,6 +87,7 @@ def test_lm_studio_receives_qwen_thinking_controls() -> None:
 
 
 def test_stream_exposes_reasoning_as_status_event(monkeypatch) -> None:
+    posted: dict[str, object] = {}
     class Value:
         def __init__(self, **values):
             self.__dict__.update(values)
@@ -110,12 +111,14 @@ def test_stream_exposes_reasoning_as_status_event(monkeypatch) -> None:
                 ]
             )
 
-    monkeypatch.setattr(
-        "leettutor.llm_client.requests.post", lambda *_args, **_kwargs: Response()
-    )
+    def fake_post(*_args, **kwargs):
+        posted.update(kwargs)
+        return Response()
+
+    monkeypatch.setattr("leettutor.llm_client.requests.post", fake_post)
 
     client = LocalLLMClient(
-        ProviderSettings("Ollama", "http://localhost:11434"),
+        ProviderSettings("Ollama", "http://localhost:11434", context_tokens=8192, keep_alive="30m"),
         client_factory=lambda **_kwargs: Value(),
     )
     assert list(
@@ -127,6 +130,10 @@ def test_stream_exposes_reasoning_as_status_event(monkeypatch) -> None:
         )
     ) == [ChatDelta("thinking", "checking"), ChatDelta("content", "answer")]
 
+    payload = posted["json"]
+    assert isinstance(payload, dict)
+    assert payload["keep_alive"] == "30m"
+    assert payload["options"]["num_ctx"] == 8192
 
 def test_connection_error_has_ollama_start_hint() -> None:
     class FailingClient:

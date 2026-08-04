@@ -88,7 +88,7 @@ def main() -> int:
         python = prepare_environment(skip_install=args.skip_install)
     except (OSError, subprocess.CalledProcessError) as exc:
         print(f"[LeetTutor] 环境准备失败：{exc}", file=sys.stderr)
-        return 1
+        raise
 
     if args.vscode:
         maybe_open_vscode()
@@ -110,7 +110,7 @@ def main() -> int:
         return 0
     except OSError as exc:
         print(f"[LeetTutor] 启动失败：{exc}", file=sys.stderr)
-        return 1
+        raise
 
 
 if __name__ == "__main__":

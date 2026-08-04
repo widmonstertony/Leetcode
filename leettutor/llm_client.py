@@ -28,6 +28,8 @@ class ProviderSettings:
     endpoint: str
     api_key: str = ""
     timeout_seconds: float = 120.0
+    context_tokens: int = 4096
+    keep_alive: str = "10m"
 
 
 @dataclass(frozen=True)
@@ -195,11 +197,12 @@ class LocalLLMClient:
             "messages": list(messages),
             "stream": True,
             "think": think,
-            "keep_alive": "10m",
+            "keep_alive": self.settings.keep_alive,
             "options": {
                 "temperature": temperature,
                 "top_p": top_p,
                 "num_predict": max_tokens,
+                "num_ctx": self.settings.context_tokens,
             },
         }
         try:
@@ -232,7 +235,9 @@ class LocalLLMClient:
             ) from exc
         except requests.Timeout as exc:
             raise LocalLLMError(
-                "Ollama 在等待下一个输出片段时超时。建议使用 8B 模型或关闭深度思考。"
+                "Ollama 在等待下一个输出片段时超过 "
+                f"{self.settings.timeout_seconds:g} 秒。模型冷启动或长题面预填充仍在进行；"
+                "请保持“根据硬件和模型自动调优”开启，或手动提高 Timeout。"
             ) from exc
         except requests.HTTPError as exc:
             status = exc.response.status_code if exc.response is not None else "未知"

@@ -54,6 +54,23 @@ class ModelRecommendation:
         return f"{self.display_name}（约 {self.download_gb:g} GB）"
 
 
+@dataclass(frozen=True)
+class GenerationDefaults:
+    """Hardware- and model-aware generation settings for the local runtime."""
+
+    algorithm_temperature: float
+    system_design_temperature: float
+    top_p: float
+    timeout_seconds: float
+    algorithm_reasoning: str
+    system_design_reasoning: str
+    algorithm_max_tokens: int
+    system_design_max_tokens: int
+    context_tokens: int
+    keep_alive: str
+    partially_offloaded: bool
+
+
 MODEL_CATALOG: tuple[ModelRecommendation, ...] = (
     ModelRecommendation(
         "qwen3.5:4b",
@@ -150,19 +167,95 @@ def detect_hardware() -> HardwareProfile:
 def recommend_models(profile: HardwareProfile) -> list[ModelRecommendation]:
     """Return a responsive default, a faster option, and a quality stretch."""
 
-    accelerated_memory = profile.memory_gb if profile.apple_silicon else (profile.vram_gb or 0)
-    if profile.memory_gb >= 12 and (
+    accelerated_memory = (
+        profile.memory_gb
+        if profile.apple_silicon
+        else ((profile.vram_gb or 0) if profile.ollama_gpu_supported else 0)
+    )
+    if profile.memory_gb >= 28 and accelerated_memory >= 15:
+        model_ids = ["qwen3.6:27b", "qwen3.5:9b", "qwen3.5:4b"]
+    elif profile.memory_gb >= 12 and (
         accelerated_memory >= 7 or (not profile.ollama_gpu_supported and profile.memory_gb >= 16)
     ):
         model_ids = ["qwen3.5:9b", "qwen3.5:4b"]
     else:
         model_ids = ["qwen3.5:4b", "qwen3:8b"]
 
-    if profile.memory_gb >= 28:
+    if profile.memory_gb >= 28 and "qwen3.6:27b" not in model_ids:
         model_ids.append("qwen3.6:27b")
-    else:
+    elif profile.memory_gb < 28:
         model_ids.append("deepseek-r1:8b")
     return [_MODELS_BY_ID[model_id] for model_id in model_ids]
+
+
+def recommend_generation_defaults(
+    profile: HardwareProfile, model: str
+) -> GenerationDefaults:
+    """Choose safe interactive defaults without overriding manual mode."""
+
+    accelerated_memory = (
+        profile.memory_gb
+        if profile.apple_silicon
+        else ((profile.vram_gb or 0) if profile.ollama_gpu_supported else 0)
+    )
+    estimated_model_gb = _estimated_model_memory_gb(model)
+    model_parameters = _model_parameters_b(model)
+    usable_accelerated_memory = max(0.0, accelerated_memory - 1.5)
+    partially_offloaded = (
+        not profile.ollama_gpu_supported
+        or estimated_model_gb > usable_accelerated_memory
+    )
+
+    if model_parameters >= 35:
+        timeout_seconds = 600.0 if partially_offloaded else 420.0
+    elif model_parameters >= 27:
+        timeout_seconds = 480.0 if partially_offloaded else 360.0
+    elif model_parameters >= 8:
+        timeout_seconds = 420.0 if partially_offloaded else 300.0
+    else:
+        timeout_seconds = 240.0 if partially_offloaded else 180.0
+
+    roomy_gpu = accelerated_memory >= 12
+    return GenerationDefaults(
+        algorithm_temperature=0.2,
+        system_design_temperature=0.4,
+        top_p=0.9,
+        timeout_seconds=timeout_seconds,
+        algorithm_reasoning="none",
+        system_design_reasoning=(
+            "low" if roomy_gpu and model_parameters <= 27 else "none"
+        ),
+        algorithm_max_tokens=1024 if roomy_gpu else 768,
+        system_design_max_tokens=(
+            2048 if roomy_gpu and model_parameters < 27 else 1536
+        ),
+        context_tokens=8192 if roomy_gpu and not partially_offloaded else 4096,
+        keep_alive="30m" if roomy_gpu else "10m",
+        partially_offloaded=partially_offloaded,
+    )
+
+
+def _model_parameters_b(model: str) -> float:
+    matches = re.findall(r"(\d+(?:\.\d+)?)b", model.casefold())
+    return float(matches[0]) if matches else 0.0
+
+
+def _estimated_model_memory_gb(model: str) -> float:
+    folded = model.casefold()
+    parameters = _model_parameters_b(folded)
+    if parameters >= 35:
+        return 24.0
+    if parameters >= 27:
+        return 17.0
+    if parameters >= 14:
+        return 9.3
+    if parameters >= 9:
+        return 11.0 if "q8" in folded else 6.6
+    if parameters >= 8:
+        return 5.2
+    if parameters >= 4:
+        return 3.4
+    return max(1.0, parameters * 0.7)
 
 
 def _total_memory_bytes() -> int:

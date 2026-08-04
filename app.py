@@ -28,7 +28,13 @@ from leettutor.curriculum import (
     get_problem,
     progress_summary,
 )
-from leettutor.hardware import HardwareProfile, detect_hardware, recommend_models
+from leettutor.hardware import (
+    GenerationDefaults,
+    HardwareProfile,
+    detect_hardware,
+    recommend_generation_defaults,
+    recommend_models,
+)
 from leettutor.leetcode_client import (
     ImportedProblem,
     LeetCodeImportError,
@@ -194,6 +200,7 @@ def set_mentor_client_state(
     state: Literal["loading", "thinking", "answering", "done", "error"],
     *,
     anchor_id: str = "",
+    surface: Literal["main", "floating"] = "main",
 ) -> None:
     """Reflect tutor activity on the floating button, browser title, and scroll."""
 
@@ -207,6 +214,7 @@ def set_mentor_client_state(
     state_json = json.dumps(state)
     label_json = json.dumps(labels[state], ensure_ascii=False)
     anchor_json = json.dumps(anchor_id)
+    surface_json = json.dumps(surface)
     components.html(
         f"""
         <script>
@@ -216,6 +224,7 @@ def set_mentor_client_state(
           const state = {state_json};
           const label = {label_json};
           const anchorId = {anchor_json};
+          const surface = {surface_json};
           const root = doc.querySelector(".st-key-floating_mentor");
           const button = root?.querySelector("button");
           if (state === "done" || state === "error") {{
@@ -239,10 +248,19 @@ def set_mentor_client_state(
           }}
 
           const target = anchorId ? doc.getElementById(anchorId) : null;
-          const scroll = (behavior = "smooth") => target?.scrollIntoView({{
-            behavior,
-            block: "center",
-          }});
+          const scrollRoot = surface === "floating"
+            ? target?.closest('[data-testid="stPopoverBody"]')
+            : null;
+          const scroll = (behavior = "smooth") => {{
+            if (scrollRoot) {{
+              scrollRoot.scrollTo({{
+                top: scrollRoot.scrollHeight,
+                behavior,
+              }});
+              return;
+            }}
+            target?.scrollIntoView({{behavior, block: "center"}});
+          }};
           if (target) {{
             setTimeout(() => scroll(), 30);
             setTimeout(() => scroll(), 180);
@@ -409,6 +427,8 @@ def initialize_state() -> AppConfig:
         ]
         st.session_state.top_p = config.top_p
         st.session_state.timeout_seconds = config.timeout_seconds
+        st.session_state.auto_tune = config.auto_tune
+        st.session_state.context_tokens = config.context_tokens
         st.session_state.reasoning_algorithm = config.reasoning_efforts["algorithm"]
         st.session_state.reasoning_system_design = config.reasoning_efforts[
             "system_design"
@@ -470,7 +490,10 @@ def initialize_state() -> AppConfig:
     config = st.session_state.app_config
     # Streamlit preserves session objects across code hot reloads. Rebuild an
     # older AppConfig instance when new fields are introduced during development.
-    if not hasattr(config, "reasoning_efforts") or not hasattr(config, "max_tokens"):
+    if any(
+        not hasattr(config, field)
+        for field in ("reasoning_efforts", "max_tokens", "auto_tune", "context_tokens")
+    ):
         try:
             raw_config = config.to_dict()
         except (AttributeError, TypeError):
@@ -479,6 +502,8 @@ def initialize_state() -> AppConfig:
         st.session_state.app_config = config
 
     defaults = AppConfig()
+    st.session_state.setdefault("auto_tune", config.auto_tune)
+    st.session_state.setdefault("context_tokens", config.context_tokens)
     st.session_state.setdefault(
         "reasoning_algorithm", config.reasoning_efforts["algorithm"]
     )
@@ -507,12 +532,19 @@ def initialize_state() -> AppConfig:
     return config
 
 
-def provider_settings(provider: str, endpoint: str, config: AppConfig) -> ProviderSettings:
+def provider_settings(
+    provider: str,
+    endpoint: str,
+    config: AppConfig,
+    generation: GenerationDefaults | None = None,
+) -> ProviderSettings:
     return ProviderSettings(
         provider=provider,
         endpoint=endpoint,
         api_key=config.api_key,
         timeout_seconds=float(st.session_state.timeout_seconds),
+        context_tokens=int(st.session_state.context_tokens),
+        keep_alive=generation.keep_alive if generation else "10m",
     )
 
 
@@ -829,6 +861,43 @@ def render_sidebar(
                 "Qwen 3.5 9B。"
             )
 
+        generation = recommend_generation_defaults(profile, model)
+        auto_tune = st.toggle(
+            "根据硬件和模型自动调优",
+            key="auto_tune",
+            help="按显存、内存和模型体积自动设置超时、上下文、思考强度与输出额度。",
+        )
+        if auto_tune:
+            st.session_state.temperature_algorithm = (
+                generation.algorithm_temperature
+            )
+            st.session_state.temperature_system_design = (
+                generation.system_design_temperature
+            )
+            st.session_state.top_p = generation.top_p
+            st.session_state.timeout_seconds = generation.timeout_seconds
+            st.session_state.context_tokens = generation.context_tokens
+            st.session_state.reasoning_algorithm = generation.algorithm_reasoning
+            st.session_state.reasoning_system_design = (
+                generation.system_design_reasoning
+            )
+            st.session_state.max_tokens_algorithm = (
+                generation.algorithm_max_tokens
+            )
+            st.session_state.max_tokens_system_design = (
+                generation.system_design_max_tokens
+            )
+            offload_label = (
+                "CPU + GPU 混合卸载"
+                if generation.partially_offloaded
+                else "优先完整 GPU 加载"
+            )
+            st.caption(
+                f"自动档：{offload_label} · Timeout "
+                f"{generation.timeout_seconds:g}s · 上下文 "
+                f"{generation.context_tokens} · 模型驻留 {generation.keep_alive}"
+            )
+
         st.divider()
         st.subheader("生成参数")
         temperature_key = (
@@ -842,10 +911,16 @@ def render_sidebar(
             max_value=2.0,
             step=0.05,
             key=temperature_key,
+            disabled=auto_tune,
             help="算法默认 0.2；系统设计默认 0.5。",
         )
         top_p = st.slider(
-            "Top P", min_value=0.0, max_value=1.0, step=0.05, key="top_p"
+            "Top P",
+            min_value=0.0,
+            max_value=1.0,
+            step=0.05,
+            key="top_p",
+            disabled=auto_tune,
         )
         st.number_input(
             "Timeout（秒）",
@@ -853,6 +928,15 @@ def render_sidebar(
             max_value=600.0,
             step=5.0,
             key="timeout_seconds",
+            disabled=auto_tune,
+        )
+        st.number_input(
+            "上下文 Tokens",
+            min_value=2048,
+            max_value=65536,
+            step=1024,
+            key="context_tokens",
+            disabled=auto_tune,
         )
         reasoning_key = (
             "reasoning_algorithm"
@@ -865,6 +949,7 @@ def render_sidebar(
             format_func=REASONING_LABELS.get,
             key=reasoning_key,
             help="DeepSeek/Qwen 的 thinking 可能先运行数分钟；算法引导默认关闭。",
+            disabled=auto_tune,
         )
         max_tokens_key = (
             "max_tokens_algorithm"
@@ -878,6 +963,7 @@ def render_sidebar(
                 max_value=4096,
                 step=64,
                 key=max_tokens_key,
+                disabled=auto_tune,
             )
         )
         if reasoning_effort != "none" and max_tokens < 1024:
@@ -891,6 +977,8 @@ def render_sidebar(
         config.provider = provider
         config.endpoints[provider] = endpoint
         config.model = model
+        config.auto_tune = bool(auto_tune)
+        config.context_tokens = int(st.session_state.context_tokens)
         config.temperatures["algorithm"] = float(
             st.session_state.temperature_algorithm
         )
@@ -910,6 +998,12 @@ def render_sidebar(
         config.prompts["algorithm"] = st.session_state.prompt_algorithm
         config.prompts["system_design"] = st.session_state.prompt_system_design
 
+        settings = provider_settings(
+            provider,
+            endpoint,
+            config,
+            generation=generation,
+        )
         left, right = st.columns(2)
         if left.button("保存设置", use_container_width=True):
             try:
@@ -979,10 +1073,11 @@ def submit_to_tutor(
     reasoning_effort: str,
     max_tokens: int,
     config: AppConfig,
+    surface: Literal["main", "floating"] = "main",
 ) -> None:
     history: list[HistoryItem] = st.session_state[f"{mode}_messages"]
     history.append({"role": "user", "content": content, "display": display})
-    anchor_id = f"mentor-response-{mode}-{len(history)}"
+    anchor_id = f"mentor-response-{surface}-{mode}-{len(history)}"
 
     with st.chat_message("user"):
         st.markdown(display)
@@ -992,7 +1087,7 @@ def submit_to_tutor(
             'class="mentor-response-anchor"></span>',
             unsafe_allow_html=True,
         )
-        set_mentor_client_state("loading", anchor_id=anchor_id)
+        set_mentor_client_state("loading", anchor_id=anchor_id, surface=surface)
         activity = st.status(
             f"正在连接 {settings.provider} 并加载 {model or '模型'}…首次加载可能需要几十秒。",
             expanded=False,
@@ -1024,7 +1119,7 @@ def submit_to_tutor(
                     if delta.kind == "thinking":
                         thinking_chars += len(delta.content)
                         if not thinking_started:
-                            set_mentor_client_state("thinking", anchor_id=anchor_id)
+                            set_mentor_client_state("thinking", anchor_id=anchor_id, surface=surface)
                             activity.update(label="模型正在思考…", state="running")
                             thinking_started = True
                         now = time.monotonic()
@@ -1040,14 +1135,14 @@ def submit_to_tutor(
                     else:
                         complete += delta.content
                         if not answer_started:
-                            set_mentor_client_state("answering", anchor_id=anchor_id)
+                            set_mentor_client_state("answering", anchor_id=anchor_id, surface=surface)
                             activity.update(label="模型正在回答…", state="running")
                             answer_started = True
                         placeholder.markdown(complete + "▌")
         except LocalLLMError as exc:
             placeholder.empty()
             activity.update(label="模型调用失败", state="error")
-            set_mentor_client_state("error", anchor_id=anchor_id)
+            set_mentor_client_state("error", anchor_id=anchor_id, surface=surface)
             st.error(str(exc))
             st.caption("你的问题已经保留，可以修正侧边栏配置后再次发送。")
             return
@@ -1055,7 +1150,7 @@ def submit_to_tutor(
         placeholder.empty()
         if not complete.strip():
             activity.update(label="没有收到最终答案", state="error")
-            set_mentor_client_state("error", anchor_id=anchor_id)
+            set_mentor_client_state("error", anchor_id=anchor_id, surface=surface)
             if thinking_chars:
                 st.warning(
                     "模型把本次输出额度都用在了思考阶段。请把“深度思考”设为关闭，"
@@ -1069,14 +1164,20 @@ def submit_to_tutor(
             complete, render_mermaid=(mode == "system_design")
         )
         history.append({"role": "assistant", "content": complete})
-        set_mentor_client_state("done", anchor_id=anchor_id)
+        set_mentor_client_state("done", anchor_id=anchor_id, surface=surface)
 
 
 def render_floating_mentor(
     *,
     mode: Literal["algorithm", "system_design"],
     model: str,
-) -> tuple[str, str] | None:
+    settings: ProviderSettings,
+    temperature: float,
+    top_p: float,
+    reasoning_effort: str,
+    max_tokens: int,
+    config: AppConfig,
+) -> None:
     """Render a fixed tutor character backed by the existing conversation."""
 
     history: list[HistoryItem] = st.session_state[f"{mode}_messages"]
@@ -1167,8 +1268,19 @@ def render_floating_mentor(
                             "这是悬浮架构导师对话。请延续现有面试记录，一次只推进一个关键点。\n\n"
                             f"当前需求：{requirement}\n我的问题：{requested_question}"
                         )
-                    return content, f"向小沐提问：{requested_question}"
-    return None
+                    submit_to_tutor(
+                        mode=mode,
+                        content=content,
+                        display=f"向小沐提问：{requested_question}",
+                        settings=settings,
+                        model=model,
+                        temperature=temperature,
+                        top_p=top_p,
+                        reasoning_effort=reasoning_effort,
+                        max_tokens=max_tokens,
+                        config=config,
+                        surface="floating",
+                    )
 
 
 def _run_result_text(result: dict[str, object] | None = None) -> str:
@@ -1619,9 +1731,15 @@ def render_algorithm_mode(
     if review_request:
         pending = review_request
 
-    floating_pending = render_floating_mentor(
+    render_floating_mentor(
         mode="algorithm",
         model=model,
+        settings=settings,
+        temperature=temperature,
+        top_p=top_p,
+        reasoning_effort=reasoning_effort,
+        max_tokens=max_tokens,
+        config=config,
     )
 
     st.markdown("#### 导师对练记录")
@@ -1636,8 +1754,6 @@ def render_algorithm_mode(
             _workspace_request(chat_prompt, trigger="代码工作区对话"),
             chat_prompt,
         )
-    if floating_pending:
-        pending = floating_pending
 
     if pending:
         submit_to_tutor(
@@ -1683,9 +1799,15 @@ def render_system_design_mode(
                 f"开始系统设计：**{requirement.strip()}**",
             )
 
-    floating_pending = render_floating_mentor(
+    render_floating_mentor(
         mode="system_design",
         model=model,
+        settings=settings,
+        temperature=temperature,
+        top_p=top_p,
+        reasoning_effort=reasoning_effort,
+        max_tokens=max_tokens,
+        config=config,
     )
 
     st.markdown("#### 架构对练")
@@ -1697,8 +1819,6 @@ def render_system_design_mode(
     )
     if chat_prompt:
         pending = (chat_prompt, chat_prompt)
-    if floating_pending:
-        pending = floating_pending
 
     if pending:
         submit_to_tutor(

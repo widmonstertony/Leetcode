@@ -14,7 +14,11 @@ def test_config_round_trip(tmp_path: Path, monkeypatch) -> None:
         monkeypatch.delenv(name, raising=False)
 
     path = tmp_path / "config.json"
-    original = AppConfig(model="qwen-test")
+    original = AppConfig(
+        model="qwen-test",
+        auto_tune=False,
+        context_tokens=16384,
+    )
     original.prompts["algorithm"] = "custom prompt"
     save_config(original, path)
 
@@ -24,6 +28,8 @@ def test_config_round_trip(tmp_path: Path, monkeypatch) -> None:
     assert loaded.temperatures["algorithm"] == 0.2
     assert loaded.reasoning_efforts["algorithm"] == "none"
     assert loaded.max_tokens["algorithm"] == 768
+    assert not loaded.auto_tune
+    assert loaded.context_tokens == 16384
 
 
 def test_invalid_numbers_fall_back_or_clamp() -> None:

@@ -34,11 +34,13 @@ class AppConfig:
         }
     )
     model: str = ""
+    auto_tune: bool = True
     temperatures: dict[str, float] = field(
         default_factory=lambda: {"algorithm": 0.2, "system_design": 0.5}
     )
     top_p: float = 0.9
     timeout_seconds: float = 120.0
+    context_tokens: int = 4096
     reasoning_efforts: dict[str, str] = field(
         default_factory=lambda: {"algorithm": "none", "system_design": "low"}
     )
@@ -112,11 +114,18 @@ class AppConfig:
                     )
                 )
 
+        raw_auto_tune = raw.get("auto_tune", defaults.auto_tune)
+        auto_tune = (
+            raw_auto_tune if isinstance(raw_auto_tune, bool) else defaults.auto_tune
+        )
+
+
         return cls(
             provider=provider,
             endpoints=endpoints,
             model=str(raw.get("model", "")).strip(),
             temperatures=temperatures,
+            auto_tune=auto_tune,
             top_p=_bounded_float(
                 raw.get("top_p"), default=defaults.top_p, minimum=0.0, maximum=1.0
             ),
@@ -127,6 +136,14 @@ class AppConfig:
                 maximum=600.0,
             ),
             reasoning_efforts=reasoning_efforts,
+            context_tokens=int(
+                _bounded_float(
+                    raw.get("context_tokens"),
+                    default=float(defaults.context_tokens),
+                    minimum=2048,
+                    maximum=65536,
+                )
+            ),
             max_tokens=max_tokens,
             api_key=str(raw.get("api_key", "")).strip(),
             prompts=prompts,

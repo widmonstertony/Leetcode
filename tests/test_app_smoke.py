@@ -11,6 +11,10 @@ def test_app_starts_without_contacting_a_model() -> None:
     assert "发送给小沐" in [button.label for button in app.button]
     assert "适合这台设备的模型" in [item.label for item in app.selectbox]
 
+    assert "根据硬件和模型自动调优" in [item.label for item in app.toggle]
+    assert "上下文 Tokens" in [item.label for item in app.number_input]
+
+
 
 def test_chat_submission_renders_activity_ui_without_a_selected_model() -> None:
     app_path = Path(__file__).resolve().parents[1] / "app.py"
@@ -30,3 +34,12 @@ def test_streamlit_developer_shortcuts_are_disabled() -> None:
     launcher = (project_root / "scripts" / "launch.py").read_text(encoding="utf-8")
     assert 'toolbarMode = "minimal"' in config
     assert "--client.toolbarMode=minimal" in launcher
+
+
+def test_floating_mentor_keeps_response_and_scroll_inside_popover() -> None:
+    app_path = Path(__file__).resolve().parents[1] / "app.py"
+    source = app_path.read_text(encoding="utf-8")
+
+    assert 'surface="floating"' in source
+    assert "scrollRoot.scrollTo" in source
+    assert "floating_pending" not in source
