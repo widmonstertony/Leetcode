@@ -156,6 +156,21 @@ def test_theme_follows_system_and_top_spacing_is_compact() -> None:
     assert 'theme="default"' in source
 
 
+def test_settings_sidebar_keeps_native_resize_and_remembers_width() -> None:
+    source = (
+        Path(__file__).resolve().parents[1] / "app.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'const storageKey = "leettutor-sidebar-width-v1"' in source
+    assert "win.__leettutorSidebarResizeObserver = new win.ResizeObserver" in source
+    assert 'sidebar.style.width = `${saved}px`' in source
+    assert '"--leettutor-sidebar-width"' in source
+    assert '"--leettutor-sidebar-half-width"' in source
+    assert "width: 330px !important" not in source
+    assert "min-width: 280px;" in source
+    assert "max-width: min(520px, 55vw);" in source
+
+
 def test_header_branding_and_jarvis_asset_are_present() -> None:
     project_root = Path(__file__).resolve().parents[1]
     app = AppTest.from_file(str(project_root / "app.py")).run(timeout=20)
@@ -357,6 +372,9 @@ def test_workspace_splitter_and_corner_magnet_are_installed() -> None:
     source = app_path.read_text(encoding="utf-8")
 
     assert "leettutor-workspace-split-v1" in source
+    assert "__leettutorSplitControllerVersion" in source
+    assert "__leettutorSplitResizeObserver = new win.ResizeObserver" in source
+    assert 'layout.horizontal.style.width = "100%"' in source
     assert "调整题目和代码宽度" in source
     assert "ArrowLeft" in source and "ArrowRight" in source
     assert "leettutor-floating-mentor-position-v2" in source
