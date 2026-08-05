@@ -3,15 +3,26 @@
   "endpoints": {
     "Ollama": "http://localhost:11434",
     "LM Studio": "http://localhost:1234/v1",
-    "AMD Metal（Intel Mac）": "http://127.0.0.1:11435/v1"
+    "AMD Metal（Intel Mac）": "http://127.0.0.1:11435/v1",
+    "OpenAI API": "https://api.openai.com/v1",
+    "Gemini API": "https://generativelanguage.googleapis.com/v1beta/openai"
   },
   "model": "qwen3.5:9b",
+  "models": {
+    "Ollama": "qwen3.5:9b",
+    "LM Studio": "",
+    "AMD Metal（Intel Mac）": "qwen3.5:9b",
+    "OpenAI API": "gpt-5.6-terra",
+    "Gemini API": "gemini-3.6-flash"
+  },
+  "auto_tune": true,
   "temperatures": {
     "algorithm": 0.2,
     "system_design": 0.5
   },
   "top_p": 0.9,
   "timeout_seconds": 120,
+  "context_tokens": 4096,
   "reasoning_efforts": {
     "algorithm": "none",
     "system_design": "low"

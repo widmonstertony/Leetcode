@@ -10,13 +10,21 @@ from typing import Any, Mapping
 
 from dotenv import load_dotenv
 
-from .metal_runtime import AMD_METAL_ENDPOINT, AMD_METAL_PROVIDER
+from .metal_runtime import AMD_METAL_PROVIDER
+from .providers import (
+    GEMINI_PROVIDER,
+    OPENAI_PROVIDER,
+    default_endpoints,
+    default_models,
+    is_cloud_provider,
+)
 from .prompts import ALGORITHM_SYSTEM_PROMPT, SYSTEM_DESIGN_SYSTEM_PROMPT
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "config.json"
 DEFAULT_ENV_PATH = PROJECT_ROOT / ".env"
+DEFAULT_SECRETS_PATH = PROJECT_ROOT / ".leettutor" / "secrets.json"
 
 
 class ConfigError(RuntimeError):
@@ -28,14 +36,9 @@ class AppConfig:
     """All user-editable settings persisted by the app."""
 
     provider: str = "Ollama"
-    endpoints: dict[str, str] = field(
-        default_factory=lambda: {
-            "Ollama": "http://localhost:11434",
-            "LM Studio": "http://localhost:1234/v1",
-            AMD_METAL_PROVIDER: AMD_METAL_ENDPOINT,
-        }
-    )
+    endpoints: dict[str, str] = field(default_factory=default_endpoints)
     model: str = ""
+    models: dict[str, str] = field(default_factory=default_models)
     auto_tune: bool = True
     temperatures: dict[str, float] = field(
         default_factory=lambda: {"algorithm": 0.2, "system_design": 0.5}
@@ -50,6 +53,7 @@ class AppConfig:
         default_factory=lambda: {"algorithm": 768, "system_design": 1536}
     )
     api_key: str = ""
+    api_keys: dict[str, str] = field(default_factory=dict, repr=False)
     prompts: dict[str, str] = field(
         default_factory=lambda: {
             "algorithm": ALGORITHM_SYSTEM_PROMPT,
@@ -58,7 +62,15 @@ class AppConfig:
     )
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        payload = asdict(self)
+        payload.pop("api_keys", None)
+        return payload
+
+    def api_key_for(self, provider: str) -> str:
+        provider_key = self.api_keys.get(provider, "").strip()
+        if is_cloud_provider(provider):
+            return provider_key
+        return provider_key or self.api_key.strip()
 
     @classmethod
     def from_mapping(cls, raw: Mapping[str, Any]) -> "AppConfig":
@@ -75,6 +87,25 @@ class AppConfig:
                 value = raw_endpoints.get(name)
                 if isinstance(value, str) and value.strip():
                     endpoints[name] = value.strip()
+
+        raw_models = raw.get("models", {})
+        models = defaults.models.copy()
+        if isinstance(raw_models, Mapping):
+            for name in models:
+                value = raw_models.get(name)
+                if isinstance(value, str):
+                    models[name] = value.strip()
+        legacy_model = str(raw.get("model", "")).strip()
+        if legacy_model:
+            models[provider] = legacy_model
+
+        raw_api_keys = raw.get("api_keys", {})
+        api_keys: dict[str, str] = {}
+        if isinstance(raw_api_keys, Mapping):
+            for name in endpoints:
+                value = raw_api_keys.get(name)
+                if isinstance(value, str) and value.strip():
+                    api_keys[name] = value.strip()
 
         raw_temperatures = raw.get("temperatures", {})
         temperatures = defaults.temperatures.copy()
@@ -125,7 +156,8 @@ class AppConfig:
         return cls(
             provider=provider,
             endpoints=endpoints,
-            model=str(raw.get("model", "")).strip(),
+            model=legacy_model or models.get(provider, ""),
+            models=models,
             temperatures=temperatures,
             auto_tune=auto_tune,
             top_p=_bounded_float(
@@ -148,6 +180,7 @@ class AppConfig:
             ),
             max_tokens=max_tokens,
             api_key=str(raw.get("api_key", "")).strip(),
+            api_keys=api_keys,
             prompts=prompts,
         )
 
@@ -162,7 +195,11 @@ def _bounded_float(
     return min(max(number, minimum), maximum)
 
 
-def load_config(path: Path = DEFAULT_CONFIG_PATH) -> AppConfig:
+def load_config(
+    path: Path = DEFAULT_CONFIG_PATH,
+    *,
+    secrets_path: Path | None = None,
+) -> AppConfig:
     """Load JSON settings, then apply optional environment overrides."""
 
     load_dotenv(DEFAULT_ENV_PATH, override=False)
@@ -177,6 +214,12 @@ def load_config(path: Path = DEFAULT_CONFIG_PATH) -> AppConfig:
         raw = loaded
 
     config = AppConfig.from_mapping(raw)
+    resolved_secrets_path = secrets_path or (
+        DEFAULT_SECRETS_PATH
+        if path == DEFAULT_CONFIG_PATH
+        else path.with_name("secrets.json")
+    )
+    config.api_keys.update(_load_secrets(resolved_secrets_path))
     config.provider = os.getenv("LEETTUTOR_PROVIDER", config.provider)
     if config.provider not in config.endpoints:
         config.provider = "Ollama"
@@ -189,8 +232,22 @@ def load_config(path: Path = DEFAULT_CONFIG_PATH) -> AppConfig:
     config.endpoints[AMD_METAL_PROVIDER] = os.getenv(
         "LEETTUTOR_AMD_METAL_URL", config.endpoints[AMD_METAL_PROVIDER]
     )
+    config.endpoints[OPENAI_PROVIDER] = os.getenv(
+        "LEETTUTOR_OPENAI_URL", config.endpoints[OPENAI_PROVIDER]
+    )
+    config.endpoints[GEMINI_PROVIDER] = os.getenv(
+        "LEETTUTOR_GEMINI_URL", config.endpoints[GEMINI_PROVIDER]
+    )
     config.model = os.getenv("LEETTUTOR_MODEL", config.model)
+    if config.model:
+        config.models[config.provider] = config.model
     config.api_key = os.getenv("LEETTUTOR_API_KEY", config.api_key)
+    openai_key = os.getenv("LEETTUTOR_OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+    gemini_key = os.getenv("LEETTUTOR_GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
+    if openai_key:
+        config.api_keys[OPENAI_PROVIDER] = openai_key.strip()
+    if gemini_key:
+        config.api_keys[GEMINI_PROVIDER] = gemini_key.strip()
     return config
 
 
@@ -205,5 +262,45 @@ def save_config(config: AppConfig, path: Path = DEFAULT_CONFIG_PATH) -> None:
             encoding="utf-8",
         )
         temporary_path.replace(path)
+    except OSError as exc:
+        raise ConfigError(f"无法保存 {path.name}：{exc}") from exc
+
+
+def _load_secrets(path: Path) -> dict[str, str]:
+    if not path.is_file():
+        return {}
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ConfigError(f"无法读取 {path.name}：{exc}") from exc
+    if not isinstance(raw, Mapping):
+        raise ConfigError(f"{path.name} 的顶层必须是 JSON 对象。")
+    return {
+        str(name): str(value).strip()
+        for name, value in raw.items()
+        if isinstance(value, str) and value.strip()
+    }
+
+
+def save_secrets(
+    api_keys: Mapping[str, str], path: Path = DEFAULT_SECRETS_PATH
+) -> None:
+    """Persist provider keys outside config.json with owner-only permissions."""
+
+    cleaned = {
+        str(name): str(value).strip()
+        for name, value in api_keys.items()
+        if str(value).strip()
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = path.with_suffix(path.suffix + ".tmp")
+    try:
+        temporary_path.write_text(
+            json.dumps(cleaned, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        temporary_path.chmod(0o600)
+        temporary_path.replace(path)
+        path.chmod(0o600)
     except OSError as exc:
         raise ConfigError(f"无法保存 {path.name}：{exc}") from exc

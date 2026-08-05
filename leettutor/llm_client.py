@@ -18,6 +18,7 @@ from openai import (
 )
 
 from .metal_runtime import AMD_METAL_API_KEY, AMD_METAL_PROVIDER
+from .providers import GEMINI_PROVIDER, OPENAI_PROVIDER, is_cloud_provider
 
 
 class LocalLLMError(RuntimeError):
@@ -54,7 +55,10 @@ def normalize_base_url(provider: str, endpoint: str) -> str:
         raise ValueError("API Endpoint 必须是有效的 http(s) 地址。")
 
     path = parsed.path.rstrip("/")
-    if not path.endswith("/v1"):
+    if provider == GEMINI_PROVIDER:
+        if not path.endswith("/openai"):
+            raise ValueError("Gemini API Endpoint 必须以 /openai 结尾。")
+    elif not path.endswith("/v1"):
         path = f"{path}/v1" if path else "/v1"
     return urlunsplit((parsed.scheme, parsed.netloc, path, "", ""))
 
@@ -74,12 +78,19 @@ class LocalLLMClient:
         except ValueError as exc:
             raise LocalLLMError(str(exc)) from exc
 
+        if is_cloud_provider(settings.provider) and not settings.api_key.strip():
+            raise LocalLLMError(
+                f"请先为 {settings.provider} 填写 API Key。网页会员登录不能代替 API Key。"
+            )
+
         if settings.provider == "Ollama":
             default_key = "ollama"
         elif settings.provider == AMD_METAL_PROVIDER:
             default_key = AMD_METAL_API_KEY
-        else:
+        elif settings.provider == "LM Studio":
             default_key = "lm-studio"
+        else:
+            default_key = settings.api_key
         self._client = client_factory(
             base_url=base_url,
             api_key=settings.api_key or default_key,
@@ -133,17 +144,26 @@ class LocalLLMClient:
             request: dict[str, Any] = {
                 "model": model.strip(),
                 "messages": list(messages),
-                "temperature": temperature,
-                "top_p": top_p,
-                "max_tokens": max_tokens,
                 "stream": True,
             }
             folded_model = model.casefold()
+            if self.settings.provider == OPENAI_PROVIDER:
+                request["max_completion_tokens"] = max_tokens
+                if not folded_model.startswith("gpt-5"):
+                    request["temperature"] = temperature
+                    request["top_p"] = top_p
+            else:
+                request["max_tokens"] = max_tokens
+                request["temperature"] = temperature
+                request["top_p"] = top_p
             if reasoning_effort != "none" and self.settings.provider != AMD_METAL_PROVIDER:
-                # LM Studio 0.4.8+ accepts reasoning_effort on its
-                # OpenAI-compatible chat-completions endpoint.
+                # Hosted and recent LM Studio OpenAI-compatible endpoints
+                # accept the standard reasoning-effort field.
                 request["reasoning_effort"] = reasoning_effort
-            if "qwen3" in folded_model:
+            if "qwen3" in folded_model and self.settings.provider in {
+                "LM Studio",
+                AMD_METAL_PROVIDER,
+            }:
                 # Qwen 3.x chat templates expose a boolean thinking switch.
                 # Passing it alongside reasoning_effort keeps both recent and
                 # older llama.cpp-based LM Studio runtimes compatible.
@@ -273,19 +293,31 @@ class LocalLLMClient:
                 hint = "请先启动 Ollama（可在终端运行 `ollama serve`），再确认地址和端口。"
             elif provider == AMD_METAL_PROVIDER:
                 hint = "请用 run.command 启动应用，并查看 .leettutor/amd-metal-server.log。"
+            elif provider == OPENAI_PROVIDER:
+                hint = "请检查主机的互联网连接，以及 OpenAI Endpoint 是否保持官方地址。"
+            elif provider == GEMINI_PROVIDER:
+                hint = "请检查主机的互联网连接，以及 Gemini Endpoint 是否保持官方地址。"
             else:
                 hint = "请在 LM Studio 的 Developer / Local Server 页面加载模型并启动服务器。"
             return LocalLLMError(f"无法连接到 {provider}。{hint}")
         if isinstance(exc, AuthenticationError):
+            if is_cloud_provider(provider):
+                return LocalLLMError(
+                    f"{provider} 拒绝了 API Key。请重新复制密钥，并检查对应 API 项目的额度或账单状态。"
+                )
             return LocalLLMError("本地端点拒绝了 API Key，请检查侧边栏或 .env 设置。")
         if isinstance(exc, BadRequestError):
+            if is_cloud_provider(provider):
+                return LocalLLMError(
+                    f"{provider} 拒绝了请求。请检查模型名称，以及账号是否有权使用该模型。"
+                )
             return LocalLLMError(
                 "本地模型拒绝了请求。请检查模型名称，以及它是否支持 Chat Completions。"
             )
         if isinstance(exc, APIStatusError):
             return LocalLLMError(
-                f"本地服务返回 HTTP {exc.status_code}。请检查 Endpoint、模型名称和服务日志。"
+                f"{provider} 返回 HTTP {exc.status_code}。请检查 Endpoint、模型名称、额度和服务状态。"
             )
         if isinstance(exc, (ConnectionError, OSError)):
             return LocalLLMError(f"连接本地模型时出错：{exc}")
-        return LocalLLMError(f"本地模型调用失败：{exc}")
+        return LocalLLMError(f"{provider} 调用失败：{exc}")

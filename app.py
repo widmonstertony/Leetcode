@@ -6,6 +6,7 @@ import atexit
 import base64
 import html
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -23,7 +24,13 @@ from leettutor.code_runner import (
     RunResult,
     run_python_solution,
 )
-from leettutor.config import AppConfig, ConfigError, load_config, save_config
+from leettutor.config import (
+    AppConfig,
+    ConfigError,
+    load_config,
+    save_config,
+    save_secrets,
+)
 from leettutor.curriculum import (
     TOPIC_ORDER,
     Problem,
@@ -46,6 +53,14 @@ from leettutor.leetcode_client import (
     fetch_problem,
 )
 from leettutor.llm_client import LocalLLMClient, LocalLLMError, ProviderSettings
+from leettutor.lan import (
+    TRUSTED_DEVICE_COOKIE_NAME,
+    TRUSTED_DEVICE_TTL_SECONDS,
+    access_code_matches,
+    create_trusted_device_token,
+    qr_png_data_url,
+    trusted_device_token_matches,
+)
 from leettutor.mermaid import split_mermaid_blocks
 from leettutor.metal_runtime import (
     AMD_METAL_MODEL,
@@ -57,6 +72,14 @@ from leettutor.metal_runtime import (
     open_xcode_tools_installer,
 )
 from leettutor.model_manager import ModelDownloadError, pull_ollama_model
+from leettutor.providers import (
+    GEMINI_PROVIDER,
+    OPENAI_PROVIDER,
+    default_endpoints,
+    default_models,
+    is_cloud_provider,
+    provider_state_slug,
+)
 from leettutor.prompts import (
     build_code_review_request,
     build_system_design_request,
@@ -99,6 +122,13 @@ REASONING_LABELS = {
     "low": "低",
     "medium": "中",
     "high": "高（可能等待很久）",
+}
+PROVIDER_ENDPOINT_KEYS = {
+    "Ollama": "endpoint_ollama",
+    "LM Studio": "endpoint_lm_studio",
+    AMD_METAL_PROVIDER: "endpoint_amd_metal",
+    OPENAI_PROVIDER: "endpoint_openai",
+    GEMINI_PROVIDER: "endpoint_gemini",
 }
 
 
@@ -179,9 +209,11 @@ def install_mentor_client_controller() -> None:
           const doc = win.document;
           const storageKey = "leettutor-floating-mentor-position-v2";
           const sizeStorageKey = "leettutor-floating-mentor-size-v5";
-          const controllerVersion = 19;
+          const controllerVersion = 20;
           const cornerMargin = 18;
           const snapDistance = 132;
+          const mobileBreakpoint = 760;
+          const isMobile = () => win.innerWidth <= mobileBreakpoint;
 
           // Replace an older observer during Streamlit hot reloads so UI fixes
           // take effect without requiring the user to close the whole app.
@@ -279,6 +311,7 @@ def install_mentor_client_controller() -> None:
           };
 
           const syncResizeOverlay = (popover, overlay) => {
+            if (!overlay) return;
             const rect = popover.getBoundingClientRect();
             const isDialogChild = overlay.parentElement === popover;
             overlay.style.left = isDialogChild
@@ -291,7 +324,41 @@ def install_mentor_client_controller() -> None:
             overlay.style.height = `${rect.height}px`;
           };
 
+          const configureMobilePopover = (popover) => {
+            doc.getElementById("leettutor-mentor-resize-overlay")?.remove();
+            popover.classList.add("mentor-mobile-sheet", "mentor-resize-locked");
+            popover.__leettutorUserResized = false;
+            const viewportHeight = win.visualViewport?.height || win.innerHeight;
+            const bottomBar = 76;
+            const top = Math.max(8, Math.min(18, viewportHeight * 0.025));
+            const height = Math.max(360, viewportHeight - bottomBar - top - 8);
+            for (const [property, value] of Object.entries({
+              position: "fixed",
+              inset: "auto",
+              left: "8px",
+              top: `${top}px`,
+              width: `${Math.max(0, win.innerWidth - 16)}px`,
+              height: `${height}px`,
+              maxWidth: "none",
+              maxHeight: `${height}px`,
+              minWidth: "0",
+              minHeight: "0",
+              margin: "0",
+              transform: "none",
+              translate: "none",
+              scale: "1",
+              opacity: "1",
+            })) {
+              popover.style.setProperty(property, value, "important");
+            }
+          };
+
           const lockPopoverToViewport = (popover) => {
+            if (isMobile()) {
+              configureMobilePopover(popover);
+              return;
+            }
+            popover.classList.remove("mentor-mobile-sheet");
             const rect = popover.getBoundingClientRect();
             const width = Math.min(rect.width, win.innerWidth - 16);
             const height = Math.min(rect.height, win.innerHeight - 16);
@@ -316,6 +383,10 @@ def install_mentor_client_controller() -> None:
           };
 
           const installResizeOverlay = (popover) => {
+            if (isMobile()) {
+              configureMobilePopover(popover);
+              return null;
+            }
             doc.getElementById("leettutor-mentor-resize-overlay")?.remove();
             const overlay = doc.createElement("div");
             overlay.id = "leettutor-mentor-resize-overlay";
@@ -457,6 +528,11 @@ def install_mentor_client_controller() -> None:
               return;
             }
             if (popover.__leettutorConversationBound) {
+              if (isMobile()) {
+                configureMobilePopover(popover);
+                return;
+              }
+              popover.classList.remove("mentor-mobile-sheet");
               let overlay = doc.getElementById("leettutor-mentor-resize-overlay");
               if (!overlay || overlay.parentElement !== popover) {
                 overlay = installResizeOverlay(popover);
@@ -470,13 +546,13 @@ def install_mentor_client_controller() -> None:
               const savedSize = JSON.parse(
                 win.localStorage.getItem(sizeStorageKey) || "null",
               );
-              if (savedSize && Number.isFinite(savedSize.width)) {
+              if (!isMobile() && savedSize && Number.isFinite(savedSize.width)) {
                 popover.style.width = `${Math.max(
                   Math.min(340, win.innerWidth - 16),
                   Math.min(savedSize.width, win.innerWidth - 16),
                 )}px`;
               }
-              if (savedSize && Number.isFinite(savedSize.height)) {
+              if (!isMobile() && savedSize && Number.isFinite(savedSize.height)) {
                 popover.style.height = `${Math.max(
                   Math.min(360, win.innerHeight - 16),
                   Math.min(savedSize.height, win.innerHeight - 16),
@@ -508,9 +584,9 @@ def install_mentor_client_controller() -> None:
               }
             }, {passive: true});
             const settlePopover = () => {
-              if (!popover.isConnected || !overlay.isConnected) return;
+              if (!popover.isConnected) return;
               lockPopoverToViewport(popover);
-              syncResizeOverlay(popover, overlay);
+              if (overlay?.isConnected) syncResizeOverlay(popover, overlay);
             };
             popover.addEventListener(
               "animationend",
@@ -524,7 +600,9 @@ def install_mentor_client_controller() -> None:
                 const height = popover.offsetHeight;
                 syncResizeOverlay(popover, overlay);
                 if (
-                  width < 1
+                  isMobile()
+                  || !overlay
+                  || width < 1
                   || height < 1
                   || !popover.__leettutorUserResized
                 ) return;
@@ -658,19 +736,23 @@ def install_mentor_client_controller() -> None:
             if (!win.__leettutorMentorDragObserver) {
               win.__leettutorMentorDragObserver = new win.MutationObserver(bind);
               win.__leettutorMentorDragObserver.observe(target, {childList: true, subtree: true});
-              win.addEventListener("resize", () => {
-              const root = doc.querySelector(".st-key-floating_mentor");
-              if (!root) return;
-              const saved = load();
-              if (saved?.anchor && cornerPoints(root)[saved.anchor]) {
-                applyPosition(root, cornerPoints(root)[saved.anchor]);
-                save(root, saved.anchor);
-              } else if (root.style.left) {
-                const rect = root.getBoundingClientRect();
-                applyPosition(root, clamp(root, rect.left, rect.top));
-                save(root);
-              }
-              });
+              const reflow = () => {
+                bind();
+                if (isMobile()) return;
+                const root = doc.querySelector(".st-key-floating_mentor");
+                if (!root) return;
+                const saved = load();
+                if (saved?.anchor && cornerPoints(root)[saved.anchor]) {
+                  applyPosition(root, cornerPoints(root)[saved.anchor]);
+                  save(root, saved.anchor);
+                } else if (root.style.left) {
+                  const rect = root.getBoundingClientRect();
+                  applyPosition(root, clamp(root, rect.left, rect.top));
+                  save(root);
+                }
+              };
+              win.addEventListener("resize", reflow);
+              win.visualViewport?.addEventListener("resize", bindConversation);
             }
             bind();
           };
@@ -883,6 +965,299 @@ def install_workspace_split_controller() -> None:
         })();
         </script>
         """,
+        height=0,
+        width=0,
+    )
+
+
+def install_mobile_client_controller() -> None:
+    """Install a native-feeling bottom workspace switcher on phone viewports."""
+
+    components.html(
+        r"""
+        <script>
+        (() => {
+          const win = window.parent;
+          const doc = win.document;
+          const controllerVersion = 2;
+          const storagePrefix = "leettutor-mobile-pane-v1-";
+          const sidebarSessionKey = "leettutor-mobile-sidebar-initialized-v2";
+
+          if (win.__leettutorMobileControllerVersion !== controllerVersion) {
+            win.__leettutorMobileObserver?.disconnect();
+            delete win.__leettutorMobileObserver;
+            doc.getElementById("leettutor-mobile-nav")?.remove();
+            win.__leettutorMobileControllerVersion = controllerVersion;
+          }
+
+          const icon = (name) => ({
+            problem: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h9.5L19 7v13.5H6z"/><path d="M15.5 3.5V7H19M9 11h7M9 15h7"/></svg>',
+            code: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 7-5 5 5 5M15 7l5 5-5 5M13.5 4l-3 16"/></svg>',
+            mission: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3"/><path d="M12 3.5V7M20.5 12H17M12 20.5V17M3.5 12H7"/></svg>',
+            live: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17.5h3l2.2-6 3.1 8 2.4-12 2.1 10H20"/></svg>',
+            jarvis: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1.5"/><path d="M12 3v3M21 12h-3M12 21v-3M3 12h3"/></svg>',
+          })[name];
+
+          const isEnglish = () => Boolean(
+            Array.from(doc.querySelectorAll(".st-key-app_mode button"))
+              .find((button) => button.textContent?.trim() === "Algorithms")
+          );
+
+          const mode = () => {
+            if (doc.querySelector(".st-key-problem_pane, .st-key-code_pane")) {
+              return "algorithm";
+            }
+            if (doc.querySelector(".st-key-system_mission_control")) {
+              return "system";
+            }
+            return "";
+          };
+
+          const paneExists = (value) => {
+            if (value === "problem") return Boolean(doc.querySelector(".st-key-problem_pane"));
+            if (value === "code") return Boolean(doc.querySelector(".st-key-code_pane"));
+            if (value === "mission") return Boolean(doc.querySelector(".st-key-system_mission_control"));
+            if (value === "live") return Boolean(doc.querySelector(".st-key-system_live_panel"));
+            if (value === "jarvis") return Boolean(
+              doc.querySelector(".st-key-floating_mentor button, .st-key-float_mentor_pane button")
+            );
+            return false;
+          };
+
+          const choicesFor = (currentMode) => currentMode === "algorithm"
+            ? [
+                {value: "problem", zh: "题目", en: "Problem"},
+                {value: "code", zh: "代码", en: "Code"},
+                {value: "jarvis", zh: "JARVIS", en: "JARVIS"},
+              ]
+            : [
+                {value: "mission", zh: "任务", en: "Mission"},
+                {value: "live", zh: "现场", en: "Live"},
+                {value: "jarvis", zh: "JARVIS", en: "JARVIS"},
+              ];
+
+          const setPane = (currentMode, pane, shouldScroll = false) => {
+            if (pane !== "jarvis" && !paneExists(pane)) return;
+            const changed = doc.body.dataset.leettutorMobilePane !== pane;
+            doc.body.dataset.leettutorMobileMode = currentMode;
+            doc.body.dataset.leettutorMobilePane = pane;
+            if (pane !== "jarvis") {
+              try { win.localStorage.setItem(storagePrefix + currentMode, pane); }
+              catch (_) {}
+              if (shouldScroll && changed) {
+                win.scrollTo({top: 0, behavior: "smooth"});
+              }
+            }
+          };
+
+          const clickJarvis = () => {
+            const trigger = doc.querySelector(".st-key-floating_mentor button");
+            if (trigger) {
+              trigger.click();
+              return;
+            }
+            const floatButton = doc.querySelector(".st-key-float_mentor_pane button");
+            if (floatButton) {
+              doc.body.dataset.leettutorOpenJarvis = "true";
+              floatButton.click();
+            }
+          };
+
+          const buildNav = () => {
+            const nav = doc.createElement("nav");
+            nav.id = "leettutor-mobile-nav";
+            nav.setAttribute("aria-label", "Mobile workspace navigation");
+            doc.body.appendChild(nav);
+            return nav;
+          };
+
+          const sync = () => {
+            if (win.innerWidth <= 760) {
+              let sidebarInitialized = false;
+              try { sidebarInitialized = win.sessionStorage.getItem(sidebarSessionKey) === "true"; }
+              catch (_) {}
+              if (!sidebarInitialized) {
+                const sidebar = doc.querySelector('[data-testid="stSidebar"]');
+                if (sidebar) {
+                  if (sidebar.getAttribute("aria-expanded") === "true") {
+                    sidebar.querySelector('[data-testid="stSidebarCollapseButton"] button')
+                      ?.click();
+                  }
+                  try { win.sessionStorage.setItem(sidebarSessionKey, "true"); }
+                  catch (_) {}
+                }
+              }
+            }
+            const currentMode = mode();
+            let nav = doc.getElementById("leettutor-mobile-nav");
+            if (!currentMode) {
+              nav?.remove();
+              delete doc.body.dataset.leettutorMobileMode;
+              delete doc.body.dataset.leettutorMobilePane;
+              return;
+            }
+            if (!nav) nav = buildNav();
+
+            let selected = doc.body.dataset.leettutorMobilePane;
+            const allowed = choicesFor(currentMode).map((choice) => choice.value);
+            if (!allowed.includes(selected) || (selected !== "jarvis" && !paneExists(selected))) {
+              try { selected = win.localStorage.getItem(storagePrefix + currentMode) || ""; }
+              catch (_) { selected = ""; }
+            }
+            if (!allowed.includes(selected) || (selected !== "jarvis" && !paneExists(selected))) {
+              selected = currentMode === "algorithm"
+                ? (paneExists("code") ? "code" : "problem")
+                : "mission";
+            }
+            setPane(currentMode, selected);
+
+            const expanded = doc.querySelector(".st-key-floating_mentor button")
+              ?.getAttribute("aria-expanded") === "true";
+            if (
+              doc.body.dataset.leettutorOpenJarvis === "true"
+              && doc.querySelector(".st-key-floating_mentor button")
+            ) {
+              delete doc.body.dataset.leettutorOpenJarvis;
+              win.setTimeout(clickJarvis, 60);
+            }
+            const signature = `${currentMode}:${isEnglish()}:${choicesFor(currentMode)
+              .map((choice) => `${choice.value}:${paneExists(choice.value)}`).join("|")}`;
+            if (nav.dataset.signature !== signature) {
+              nav.dataset.signature = signature;
+              nav.replaceChildren();
+              for (const choice of choicesFor(currentMode)) {
+                const button = doc.createElement("button");
+                button.type = "button";
+                button.dataset.pane = choice.value;
+                button.innerHTML = icon(choice.value)
+                  + `<span>${isEnglish() ? choice.en : choice.zh}</span>`;
+                button.disabled = !paneExists(choice.value);
+                button.addEventListener("click", () => {
+                  if (choice.value === "jarvis") clickJarvis();
+                  else setPane(currentMode, choice.value, true);
+                  sync();
+                });
+                nav.appendChild(button);
+              }
+            }
+            for (const button of nav.querySelectorAll("button")) {
+              const active = button.dataset.pane === "jarvis"
+                ? expanded
+                : button.dataset.pane === doc.body.dataset.leettutorMobilePane && !expanded;
+              button.classList.toggle("is-active", active);
+              button.setAttribute("aria-current", active ? "page" : "false");
+            }
+            const mentorRoot = doc.querySelector(".st-key-floating_mentor");
+            const jarvisButton = nav.querySelector('[data-pane="jarvis"]');
+            jarvisButton?.classList.toggle(
+              "is-busy",
+              Boolean(mentorRoot?.classList.contains("mentor-busy")),
+            );
+            jarvisButton?.classList.toggle(
+              "has-update",
+              Boolean(mentorRoot?.classList.contains("mentor-has-update")),
+            );
+            nav.classList.toggle("jarvis-open", expanded);
+          };
+
+          const start = () => {
+            const target = doc.body || doc.documentElement;
+            if (!target) {
+              win.setTimeout(start, 50);
+              return;
+            }
+            if (!win.__leettutorMobileObserver) {
+              let frame = 0;
+              win.__leettutorMobileObserver = new win.MutationObserver(() => {
+                win.cancelAnimationFrame(frame);
+                frame = win.requestAnimationFrame(sync);
+              });
+              win.__leettutorMobileObserver.observe(target, {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                attributeFilter: ["aria-expanded"],
+              });
+              win.addEventListener("resize", sync);
+            }
+            sync();
+          };
+          start();
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
+def install_lan_trust_client_controller() -> None:
+    """Remember a successfully paired browser without exposing the access code."""
+
+    if not os.getenv("LEETTUTOR_ACCESS_CODE", "").strip():
+        return
+    pending_token = str(
+        st.session_state.pop("lan_trust_token_pending", "") or ""
+    )
+    components.html(
+        r"""
+        <script>
+        (() => {
+          const win = window.parent;
+          const doc = win.document;
+          const controllerVersion = 3;
+          const cookieName = __COOKIE_NAME__;
+          const maxAge = __MAX_AGE__;
+          const pendingToken = __PENDING_TOKEN__;
+
+          if (win.__leettutorLanTrustControllerVersion !== controllerVersion) {
+            win.__leettutorLanTrustObserver?.disconnect();
+            delete win.__leettutorLanTrustObserver;
+            win.__leettutorLanTrustControllerVersion = controllerVersion;
+          }
+
+          const remember = (token) => {
+            if (!token) return;
+            doc.cookie = `${cookieName}=${token}; Max-Age=${maxAge}; Path=/; SameSite=Strict`;
+          };
+          const forget = () => {
+            doc.cookie = `${cookieName}=; Max-Age=0; Path=/; SameSite=Strict`;
+          };
+
+          const sync = () => {
+            if (doc.getElementById("leettutor-lan-trust-rejected")) {
+              forget();
+              return;
+            }
+            if (pendingToken) remember(pendingToken);
+          };
+
+          const start = () => {
+            const target = doc.body || doc.documentElement;
+            if (!target) {
+              win.setTimeout(start, 50);
+              return;
+            }
+            if (!win.__leettutorLanTrustObserver) {
+              let frame = 0;
+              win.__leettutorLanTrustObserver = new win.MutationObserver(() => {
+                win.cancelAnimationFrame(frame);
+                frame = win.requestAnimationFrame(sync);
+              });
+              win.__leettutorLanTrustObserver.observe(target, {
+                childList: true,
+                subtree: true,
+              });
+            }
+            sync();
+          };
+          start();
+        })();
+        </script>
+        """
+        .replace("__COOKIE_NAME__", json.dumps(TRUSTED_DEVICE_COOKIE_NAME))
+        .replace("__MAX_AGE__", str(TRUSTED_DEVICE_TTL_SECONDS))
+        .replace("__PENDING_TOKEN__", json.dumps(pending_token)),
         height=0,
         width=0,
     )
@@ -2330,20 +2705,459 @@ def configure_page() -> None:
                 scale: 1;
             }
         }
-        @media (max-width: 700px) {
-            .block-container {padding-left: 0.5rem; padding-right: 0.5rem;}
-            .st-key-app_header {padding-left: 0.35rem; padding-right: 3.25rem;}
+        #leettutor-mobile-nav {display: none;}
+
+        /* Phone workspace: iPhone 13 Pro = 390x844 CSS px; iPhone Air =
+           420x912 CSS px. Keep one primary surface visible and make every
+           recurring action reachable from the safe-area-aware bottom bar. */
+        @media (max-width: 760px) {
+            html {
+                overflow-x: hidden;
+                scroll-padding-bottom: calc(5.25rem + env(safe-area-inset-bottom));
+            }
+            body {
+                overflow-x: hidden;
+                overscroll-behavior-y: contain;
+            }
+            body:has(#leettutor-mobile-nav) .block-container {
+                padding: 0.25rem 0.5rem calc(5.6rem + env(safe-area-inset-bottom));
+            }
+            body:has(.st-key-system_command_dock) .block-container {
+                padding-bottom: calc(10.6rem + env(safe-area-inset-bottom));
+            }
             .block-container [data-testid="stLayoutWrapper"]:has(h2) {
-                padding-left: 2.25rem;
-                padding-right: 2.25rem;
+                padding-left: 0;
+                padding-right: 0;
             }
+            [data-testid="stSidebar"][aria-expanded="true"] {
+                width: min(90vw, 360px) !important;
+                min-width: min(90vw, 360px) !important;
+                flex-basis: min(90vw, 360px) !important;
+            }
+            [data-testid="stSidebar"] input,
+            [data-testid="stSidebar"] textarea,
+            .block-container input,
+            .block-container textarea {
+                font-size: 16px !important;
+            }
+
+            /* Two-row product bar: identity/actions first, mode switch second. */
+            .st-key-app_header {
+                padding: 0.35rem 0 0.5rem;
+                margin-bottom: -0.55rem;
+            }
+            .st-key-app_header > [data-testid="stVerticalBlockBorderWrapper"]
+            > [data-testid="stVerticalBlock"] {
+                min-height: 94px;
+            }
+            .st-key-app_header > [data-testid="stLayoutWrapper"]
+            > [data-testid="stHorizontalBlock"] {
+                grid-template-columns: minmax(0, 1fr) auto !important;
+                grid-template-areas: "brand actions" "mode mode";
+                column-gap: 0.45rem !important;
+                row-gap: 0.45rem !important;
+            }
+            .st-key-app_header > [data-testid="stLayoutWrapper"]
+            > [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:first-child {
+                grid-area: brand;
+                height: 40px !important;
+            }
+            .st-key-app_header > [data-testid="stLayoutWrapper"]
+            > [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:nth-child(2) {
+                grid-area: mode;
+            }
+            .st-key-app_header > [data-testid="stLayoutWrapper"]
+            > [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:last-child {
+                grid-area: actions;
+                width: auto !important;
+                margin-right: 2.75rem;
+            }
+            .brand-shell {height: 40px; gap: 0.5rem;}
+            .st-key-app_header button.leettutor-product-mark {
+                flex-basis: 40px !important;
+                width: 40px !important;
+                min-width: 40px !important;
+                height: 40px !important;
+                min-height: 40px !important;
+                border-radius: 12px !important;
+            }
+            .brand-copy {
+                display: flex;
+                height: 40px;
+                align-items: center;
+            }
+            .brand-eyebrow,
+            .brand-maker,
+            .runtime-strip {display: none;}
+            .brand-title {font-size: 1.18rem; line-height: 1;}
+            .st-key-app_header button {
+                min-height: 40px;
+                height: 40px;
+                border-radius: 10px;
+            }
+            .st-key-app_header > [data-testid="stLayoutWrapper"]
+            > [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:last-child
+            [data-testid="stHorizontalBlock"] {
+                flex-wrap: nowrap !important;
+                gap: 0.35rem;
+            }
+            .st-key-app_header > [data-testid="stLayoutWrapper"]
+            > [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:last-child
+            [data-testid="stColumn"] {
+                width: auto !important;
+                min-width: 4.35rem !important;
+                flex: 1 1 auto !important;
+            }
+            .st-key-app_mode [data-testid="stHorizontalBlock"] {
+                display: grid !important;
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+                gap: 0.4rem;
+            }
+            .st-key-app_mode [data-testid="stColumn"] {
+                width: 100% !important;
+                min-width: 0 !important;
+                max-width: none !important;
+                flex: none !important;
+            }
+
+            /* Mission summaries occupy one row; the three actions share the next. */
+            .st-key-algorithm_mission_control > [data-testid="stVerticalBlockBorderWrapper"]
+            > [data-testid="stVerticalBlock"] > [data-testid="stLayoutWrapper"]
+            > [data-testid="stHorizontalBlock"],
+            .st-key-system_mission_control > [data-testid="stVerticalBlockBorderWrapper"]
+            > [data-testid="stVerticalBlock"] > [data-testid="stLayoutWrapper"]
+            > [data-testid="stHorizontalBlock"] {
+                display: grid !important;
+                grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+                gap: 0.45rem !important;
+            }
+            .st-key-algorithm_mission_control > [data-testid="stVerticalBlockBorderWrapper"]
+            > [data-testid="stVerticalBlock"] > [data-testid="stLayoutWrapper"]
+            > [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:first-child,
+            .st-key-system_mission_control > [data-testid="stVerticalBlockBorderWrapper"]
+            > [data-testid="stVerticalBlock"] > [data-testid="stLayoutWrapper"]
+            > [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:first-child {
+                grid-column: 1 / -1;
+            }
+            .st-key-algorithm_mission_control [data-testid="stColumn"],
+            .st-key-system_mission_control [data-testid="stColumn"] {
+                width: 100% !important;
+                min-width: 0 !important;
+                flex: none !important;
+            }
+            .st-key-algorithm_mission_control button,
+            .st-key-system_mission_control button {
+                min-height: 46px;
+                height: auto;
+                padding: 0.45rem 0.35rem;
+                white-space: normal;
+                line-height: 1.15;
+            }
+            /* Streamlit's phone column rule has changed across releases; these
+               semantic :has() selectors keep the action grid stable. */
+            .st-key-algorithm_mission_control
+            [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"]),
+            .st-key-system_mission_control
+            [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"]) {
+                display: grid !important;
+                grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+                gap: 0.45rem !important;
+            }
+            .st-key-algorithm_mission_control
+            [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"])
+            > [data-testid="stColumn"]:first-child,
+            .st-key-system_mission_control
+            [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"])
+            > [data-testid="stColumn"]:first-child {
+                grid-column: 1 / -1;
+            }
+
+            /* The bottom switcher owns pane visibility; the desktop splitter is idle. */
+            .leettutor-split-handle {display: none !important;}
+            [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] .st-key-problem_pane),
+            [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] .st-key-code_pane),
+            [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"] .st-key-system_mission_control) {
+                display: block !important;
+            }
+            [data-testid="stColumn"]:has(.st-key-problem_pane),
+            [data-testid="stColumn"]:has(.st-key-code_pane),
+            [data-testid="stColumn"]:has(.st-key-mentor_pane),
+            [data-testid="stColumn"]:has(.st-key-system_mission_control),
+            [data-testid="stColumn"]:has(.st-key-system_live_panel) {
+                width: 100% !important;
+                min-width: 0 !important;
+                max-width: none !important;
+                flex: 1 1 100% !important;
+            }
+            body[data-leettutor-mobile-mode="algorithm"][data-leettutor-mobile-pane="problem"]
+            [data-testid="stColumn"]:has(.st-key-code_pane),
+            body[data-leettutor-mobile-mode="algorithm"][data-leettutor-mobile-pane="code"]
+            [data-testid="stColumn"]:has(.st-key-problem_pane),
+            body[data-leettutor-mobile-mode="algorithm"]
+            [data-testid="stColumn"]:has(.st-key-mentor_pane),
+            body[data-leettutor-mobile-mode="system"][data-leettutor-mobile-pane="mission"]
+            [data-testid="stColumn"]:has(.st-key-system_live_panel),
+            body[data-leettutor-mobile-mode="system"][data-leettutor-mobile-pane="live"]
+            [data-testid="stColumn"]:has(.st-key-system_mission_control) {
+                display: none !important;
+            }
+
+            .st-key-problem_pane,
+            .st-key-code_pane {
+                height: clamp(32rem, 69dvh, 39rem) !important;
+                padding: 0.35rem 0.45rem 0.55rem !important;
+            }
+            .st-key-problem_pane > [data-testid="stVerticalBlockBorderWrapper"],
+            .st-key-code_pane > [data-testid="stVerticalBlockBorderWrapper"] {
+                height: 100% !important;
+                border-radius: 14px;
+            }
+            .st-key-code_pane iframe {
+                height: clamp(19rem, 40dvh, 23rem) !important;
+                min-height: 19rem !important;
+            }
+            .st-key-problem_pane h4 {font-size: 1.12rem !important;}
+            .st-key-problem_pane p,
+            .st-key-problem_pane li {line-height: 1.55;}
+            .workspace-panel-heading,
+            .st-key-problem_header [data-testid="stHorizontalBlock"],
+            .st-key-code_header [data-testid="stHorizontalBlock"] {
+                min-height: 46px;
+            }
+            .workspace-panel-heading h3 {font-size: 1.4rem !important;}
+            .workspace-panel-heading .workspace-kicker {font-size: 0.66rem;}
+            .st-key-problem_header > [data-testid="stVerticalBlockBorderWrapper"]
+            [data-testid="stHorizontalBlock"] {
+                display: grid !important;
+                grid-template-columns: 1fr 42px !important;
+                gap: 0.35rem !important;
+            }
+            .st-key-problem_header
+            [data-testid="stHorizontalBlock"]:has(.st-key-hide_problem_pane) {
+                display: grid !important;
+                grid-template-columns: minmax(0, 1fr) 42px !important;
+                gap: 0.35rem !important;
+            }
+            .st-key-code_header > [data-testid="stVerticalBlockBorderWrapper"]
+            > [data-testid="stVerticalBlock"] > [data-testid="stLayoutWrapper"]
+            > [data-testid="stHorizontalBlock"] {
+                display: grid !important;
+                grid-template-columns: minmax(0, 1fr) auto 42px !important;
+                gap: 0.35rem !important;
+            }
+            .st-key-code_header
+            [data-testid="stHorizontalBlock"]:has(.st-key-code_language_switch) {
+                display: grid !important;
+                grid-template-columns: minmax(0, 1fr) auto 42px !important;
+                gap: 0.35rem !important;
+            }
+            .st-key-problem_header
+            [data-testid="stHorizontalBlock"]:has(.st-key-hide_problem_pane)
+            > [data-testid="stColumn"],
+            .st-key-code_header
+            [data-testid="stHorizontalBlock"]:has(.st-key-code_language_switch)
+            > [data-testid="stColumn"] {
+                width: 100% !important;
+                min-width: 0 !important;
+                flex: none !important;
+            }
+            .st-key-code_language_switch [data-testid="stHorizontalBlock"] {
+                display: flex !important;
+                flex-wrap: nowrap !important;
+            }
+            .st-key-code_language_switch [data-testid="stColumn"] {
+                width: auto !important;
+                min-width: 3.8rem !important;
+                flex: 1 1 auto !important;
+            }
+            .st-key-code_language_switch button {
+                min-height: 40px;
+                height: 40px;
+            }
+            .code-editor-shortcuts {
+                margin-top: 0;
+                font-size: 0.68rem;
+                line-height: 1.35;
+            }
+
+            /* System-design mission/live becomes a focused two-tab workspace. */
+            .st-key-system_live_panel {
+                position: relative;
+                top: auto;
+                height: clamp(32rem, 69dvh, 39rem) !important;
+                min-height: 32rem;
+                padding: 0.7rem;
+            }
+            [data-testid="stLayoutWrapper"]:has(> .st-key-system_live_panel) {
+                height: auto !important;
+                min-height: 0;
+            }
+            .st-key-system_command_dock,
+            body:has([data-testid="stSidebar"][aria-expanded="true"])
+            .st-key-system_command_dock {
+                left: 0.5rem;
+                right: 0.5rem;
+                bottom: calc(4.75rem + env(safe-area-inset-bottom));
+                width: auto;
+                padding: 0.45rem;
+                border-radius: 14px;
+                transform: none;
+            }
+            .system-command-label {display: none;}
+            .st-key-system_command_dock [data-testid="stForm"]
+            > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] {
+                display: grid !important;
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+                gap: 0.4rem !important;
+            }
+            .st-key-system_command_dock [data-testid="stForm"]
+            > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"]
+            > [data-testid="stColumn"]:first-child {
+                grid-column: 1 / -1;
+            }
+            .st-key-system_command_dock [data-testid="stColumn"] {
+                width: 100% !important;
+                min-width: 0 !important;
+                flex: none !important;
+            }
+
+            /* JARVIS is opened by the bottom tab and becomes a keyboard-safe sheet. */
             .st-key-floating_mentor {
-                right: 0.75rem;
-                bottom: 0.75rem;
+                left: -100px !important;
+                top: -100px !important;
+                right: auto !important;
+                bottom: auto !important;
+                width: 1px !important;
+                height: 1px !important;
+                overflow: hidden !important;
+                opacity: 0 !important;
+                pointer-events: none !important;
+                filter: none;
             }
-            .st-key-floating_mentor button {
+            [data-testid="stPopoverBody"]:has(.st-key-floating_composer),
+            [data-testid="stPopoverBody"].mentor-mobile-sheet {
+                border-radius: 20px 20px 14px 14px !important;
+                box-shadow: 0 18px 60px rgba(6, 26, 43, 0.30) !important;
+                overscroll-behavior: contain;
+            }
+            [data-testid="stPopoverBody"].mentor-mobile-sheet
+            .mentor-resize-overlay {display: none !important;}
+            [data-testid="stPopoverBody"].mentor-mobile-sheet
+            .st-key-floating_transcript {
+                min-height: 8rem;
+            }
+            [data-testid="stPopoverBody"].mentor-mobile-sheet
+            .st-key-floating_composer {
+                bottom: -1rem;
+                padding-bottom: calc(0.8rem + env(safe-area-inset-bottom));
+            }
+
+            #leettutor-mobile-nav {
+                position: fixed;
+                left: 0.5rem;
+                right: 0.5rem;
+                bottom: max(0.45rem, env(safe-area-inset-bottom));
+                z-index: 2147482001;
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 0.3rem;
+                min-height: 64px;
+                padding: 0.35rem;
+                border: 1px solid color-mix(in srgb, var(--text-color) 15%, transparent);
+                border-radius: 18px;
+                background: color-mix(in srgb, var(--background-color) 90%, transparent);
+                box-shadow: 0 14px 42px rgba(14, 39, 62, 0.22),
+                            inset 0 1px 0 rgba(255, 255, 255, 0.08);
+                backdrop-filter: blur(24px) saturate(1.2);
+            }
+            #leettutor-mobile-nav button {
+                position: relative;
+                display: flex;
+                min-width: 0;
                 min-height: 54px;
-                padding: 0.55rem 0.8rem;
+                align-items: center;
+                justify-content: center;
+                flex-direction: column;
+                gap: 0.18rem;
+                padding: 0.3rem 0.25rem;
+                border: 0;
+                border-radius: 13px;
+                color: color-mix(in srgb, var(--text-color) 60%, transparent);
+                background: transparent;
+                font: 680 0.68rem/1 ui-sans-serif, system-ui, sans-serif;
+                -webkit-tap-highlight-color: transparent;
+                touch-action: manipulation;
+            }
+            #leettutor-mobile-nav button svg {
+                width: 22px;
+                height: 22px;
+                fill: none;
+                stroke: currentColor;
+                stroke-width: 1.8;
+                stroke-linecap: round;
+                stroke-linejoin: round;
+            }
+            #leettutor-mobile-nav button.is-active {
+                color: #1baed9;
+                background: rgba(27, 174, 217, 0.11);
+                box-shadow: inset 0 0 0 1px rgba(45, 190, 231, 0.16);
+            }
+            #leettutor-mobile-nav button:disabled {opacity: 0.32;}
+            #leettutor-mobile-nav button.is-busy svg {animation: mentor-spin 0.9s linear infinite;}
+            #leettutor-mobile-nav button.has-update::after {
+                content: "";
+                position: absolute;
+                top: 7px;
+                right: calc(50% - 18px);
+                width: 8px;
+                height: 8px;
+                border: 2px solid var(--background-color);
+                border-radius: 50%;
+                background: #2ac98a;
+                box-shadow: 0 0 10px rgba(42, 201, 138, 0.55);
+            }
+        }
+
+        /* iPhone 13 Pro: preserve the 390px content width without truncating controls. */
+        @media (max-width: 400px) {
+            body:has(#leettutor-mobile-nav) .block-container {
+                padding-left: 0.4rem;
+                padding-right: 0.4rem;
+            }
+            .brand-title {font-size: 1.08rem;}
+            .st-key-app_header > [data-testid="stLayoutWrapper"]
+            > [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:last-child
+            [data-testid="stColumn"] {min-width: 4rem !important;}
+            .st-key-algorithm_mission_control button,
+            .st-key-system_mission_control button {
+                font-size: 0.76rem;
+                padding-left: 0.2rem;
+                padding-right: 0.2rem;
+            }
+            .st-key-code_header > [data-testid="stVerticalBlockBorderWrapper"]
+            > [data-testid="stVerticalBlock"] > [data-testid="stLayoutWrapper"]
+            > [data-testid="stHorizontalBlock"] {
+                grid-template-columns: minmax(0, 1fr) auto 40px !important;
+            }
+            .st-key-code_header
+            [data-testid="stHorizontalBlock"]:has(.st-key-code_language_switch) {
+                grid-template-columns: minmax(0, 1fr) auto 40px !important;
+            }
+            .st-key-code_language_switch [data-testid="stColumn"] {
+                min-width: 3.5rem !important;
+            }
+            #leettutor-mobile-nav {left: 0.4rem; right: 0.4rem;}
+        }
+
+        /* iPhone Air: use the extra 30 CSS pixels for a roomier editor and sheet. */
+        @media (min-width: 401px) and (max-width: 430px) {
+            .st-key-problem_pane,
+            .st-key-code_pane,
+            .st-key-system_live_panel {
+                height: clamp(34rem, 70dvh, 41rem) !important;
+            }
+            .st-key-code_pane iframe {
+                height: clamp(20rem, 42dvh, 24rem) !important;
             }
         }
         @media (max-height: 760px) {
@@ -2359,6 +3173,119 @@ def configure_page() -> None:
     )
     install_mentor_client_controller()
     install_workspace_split_controller()
+    install_mobile_client_controller()
+    install_lan_trust_client_controller()
+
+
+def require_lan_access() -> None:
+    """Stop before user data loads until this LAN browser is paired."""
+
+    expected = os.getenv("LEETTUTOR_ACCESS_CODE", "").strip()
+    if not expected:
+        return
+    if st.session_state.get("lan_authorized", False):
+        return
+
+    trust_secret = os.getenv("LEETTUTOR_LAN_TRUST_SECRET", "").strip()
+    provided_token = str(
+        st.context.cookies.get(TRUSTED_DEVICE_COOKIE_NAME, "") or ""
+    ).strip()
+    trusted = trusted_device_token_matches(trust_secret, provided_token)
+    if trusted:
+        st.session_state.lan_authorized = True
+        return
+    if provided_token:
+        st.markdown(
+            '<span id="leettutor-lan-trust-rejected" hidden></span>',
+            unsafe_allow_html=True,
+        )
+
+    st.markdown(
+        """
+        <style>
+        .st-key-lan_login {
+            width: min(28rem, calc(100vw - 2rem));
+            margin: clamp(2rem, 12vh, 7rem) auto 0;
+        }
+        .st-key-lan_login > [data-testid="stVerticalBlockBorderWrapper"] {
+            padding: 1.75rem;
+            border: 1px solid color-mix(in srgb, var(--text-color) 14%, transparent);
+            border-radius: 22px;
+            background: color-mix(in srgb, var(--secondary-background-color) 72%, transparent);
+            box-shadow: 0 24px 70px rgba(15, 39, 65, 0.13);
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    login_slot = st.empty()
+    with login_slot.container():
+        with st.container(key="lan_login", border=True):
+            st.markdown("## 🧠 LeetTutor")
+            st.caption(
+                _ui(
+                    "局域网主机模式 · 安全入口",
+                    "LAN host mode · Secure access",
+                )
+            )
+            with st.form("lan_access_form"):
+                supplied = st.text_input(
+                    _ui("本次访问码", "Access code for this run"),
+                    type="password",
+                    max_chars=16,
+                    placeholder="••••••••",
+                )
+                remember_device = st.checkbox(
+                    _ui(
+                        "在此浏览器记住这台主机 30 天",
+                        "Trust this host in this browser for 30 days",
+                    ),
+                    value=True,
+                    disabled=not bool(trust_secret),
+                    help=_ui(
+                        "仅保存由主机签名的随机凭证，不保存访问码。公共或共享设备请关闭。",
+                        "Stores only a host-signed random token, never the access code. Disable this on public or shared devices.",
+                    ),
+                )
+                submitted = st.form_submit_button(
+                    _ui("进入 LeetTutor", "Enter LeetTutor"),
+                    type="primary",
+                    use_container_width=True,
+                )
+            if submitted and not access_code_matches(expected, supplied):
+                st.error(
+                    _ui(
+                        "访问码不正确。请查看主机的启动窗口。",
+                        "Incorrect code. Check the host's launch window.",
+                    )
+                )
+            st.caption(
+                _ui(
+                    "首次验证后，同一浏览器可自动进入；主机仍应只运行在可信的私人 Wi‑Fi 中。",
+                    "After the first verification, this browser can enter automatically. Keep the host on a trusted private Wi-Fi network.",
+                )
+            )
+
+    if submitted and access_code_matches(expected, supplied):
+        st.session_state.lan_authorized = True
+        if remember_device and trust_secret:
+            st.session_state.lan_trust_token_pending = (
+                create_trusted_device_token(trust_secret)
+            )
+        login_slot.empty()
+        if remember_device and trust_secret:
+            # Emit the storage command in the successful form run itself. A
+            # second immediate rerun can tear down the component before the
+            # browser receives the signed token.
+            install_lan_trust_client_controller()
+        st.toast(
+            _ui(
+                "此浏览器已与主机配对。",
+                "This browser is now paired with the host.",
+            )
+        )
+        return
+    st.stop()
 
 
 def initialize_state() -> AppConfig:
@@ -2375,10 +3302,10 @@ def initialize_state() -> AppConfig:
         st.session_state.problem_language = "zh"
         st.session_state.problem_translation_requested = False
         st.session_state.provider = config.provider
-        st.session_state.endpoint_ollama = config.endpoints["Ollama"]
-        st.session_state.endpoint_lm_studio = config.endpoints["LM Studio"]
-        st.session_state.endpoint_amd_metal = config.endpoints[AMD_METAL_PROVIDER]
-        st.session_state.model_manual = config.model
+        for provider, endpoint_key in PROVIDER_ENDPOINT_KEYS.items():
+            st.session_state[endpoint_key] = config.endpoints[provider]
+            model_key = f"model_manual_{provider_state_slug(provider)}"
+            st.session_state[model_key] = config.models.get(provider, "")
         st.session_state.temperature_algorithm = config.temperatures["algorithm"]
         st.session_state.temperature_system_design = config.temperatures[
             "system_design"
@@ -2459,7 +3386,14 @@ def initialize_state() -> AppConfig:
     # older AppConfig instance when new fields are introduced during development.
     if any(
         not hasattr(config, field)
-        for field in ("reasoning_efforts", "max_tokens", "auto_tune", "context_tokens")
+        for field in (
+            "reasoning_efforts",
+            "max_tokens",
+            "auto_tune",
+            "context_tokens",
+            "models",
+            "api_keys",
+        )
     ):
         try:
             raw_config = config.to_dict()
@@ -2469,14 +3403,19 @@ def initialize_state() -> AppConfig:
         st.session_state.app_config = config
 
     defaults = AppConfig()
-    config.endpoints.setdefault(
-        AMD_METAL_PROVIDER, defaults.endpoints[AMD_METAL_PROVIDER]
-    )
-    st.session_state.setdefault(
-        "endpoint_amd_metal", config.endpoints[AMD_METAL_PROVIDER]
-    )
+    for provider, default_endpoint in default_endpoints().items():
+        config.endpoints.setdefault(provider, default_endpoint)
+        config.models.setdefault(provider, default_models().get(provider, ""))
+        st.session_state.setdefault(
+            PROVIDER_ENDPOINT_KEYS[provider], config.endpoints[provider]
+        )
+        st.session_state.setdefault(
+            f"model_manual_{provider_state_slug(provider)}",
+            config.models.get(provider, ""),
+        )
     st.session_state.setdefault("available_models", {})
-    st.session_state.available_models.setdefault(AMD_METAL_PROVIDER, [])
+    for provider in config.endpoints:
+        st.session_state.available_models.setdefault(provider, [])
     st.session_state.setdefault("auto_tune", config.auto_tune)
     st.session_state.setdefault("context_tokens", config.context_tokens)
     st.session_state.setdefault(
@@ -2532,7 +3471,7 @@ def provider_settings(
     return ProviderSettings(
         provider=provider,
         endpoint=endpoint,
-        api_key=config.api_key,
+        api_key=config.api_key_for(provider),
         timeout_seconds=float(st.session_state.timeout_seconds),
         context_tokens=int(st.session_state.context_tokens),
         keep_alive=generation.keep_alive if generation else "10m",
@@ -2938,10 +3877,130 @@ def render_amd_metal_setup(
                 st.code(log_tail, language="text")
 
 
+def cloud_generation_defaults() -> GenerationDefaults:
+    """Interactive tutor defaults for hosted APIs, independent of local hardware."""
+
+    return GenerationDefaults(
+        algorithm_temperature=0.2,
+        system_design_temperature=0.5,
+        top_p=0.9,
+        timeout_seconds=180.0,
+        algorithm_reasoning="none",
+        system_design_reasoning="low",
+        algorithm_max_tokens=1024,
+        system_design_max_tokens=2048,
+        context_tokens=32768,
+        keep_alive=_ui("云端托管", "cloud managed"),
+        partially_offloaded=False,
+    )
+
+
+def render_cloud_provider_setup(provider: str, config: AppConfig) -> None:
+    configured = bool(config.api_key_for(provider))
+    st.markdown(
+        "**"
+        + _ui("连接状态：", "Credential status: ")
+        + (
+            _ui("已配置 API Key", "API key configured")
+            if configured
+            else _ui("尚未配置 API Key", "API key not configured")
+        )
+        + "**"
+    )
+    if provider == OPENAI_PROVIDER:
+        st.info(
+            _ui(
+                "ChatGPT Plus/Pro 与 OpenAI Platform API 是两套独立的产品、密钥和账单。"
+                "这里需要 Platform API Key，不能直接复用 ChatGPT 网页会员。",
+                "ChatGPT Plus/Pro and the OpenAI Platform API use separate access, keys, and billing. "
+                "This app needs a Platform API key; a ChatGPT web subscription cannot be reused here.",
+            )
+        )
+        first, second = st.columns(2)
+        first.link_button(
+            _ui("创建 OpenAI API Key", "Create OpenAI API key"),
+            "https://platform.openai.com/api-keys",
+            use_container_width=True,
+        )
+        second.link_button(
+            _ui("查看 API 账单", "Open API billing"),
+            "https://platform.openai.com/settings/organization/billing/overview",
+            use_container_width=True,
+        )
+        st.caption(
+            _ui(
+                "默认使用 gpt-5.6-terra：适合交互式导师的质量/成本平衡；可手动改为 gpt-5.6-sol 或 gpt-5.6-luna。",
+                "Default: gpt-5.6-terra for a balanced interactive tutor; you can enter gpt-5.6-sol or gpt-5.6-luna instead.",
+            )
+        )
+    else:
+        st.info(
+            _ui(
+                "Gemini 网页会员不能作为 API Key 使用。请在 Google AI Studio 创建密钥；"
+                "Gemini API 有独立的免费/付费额度与账单。",
+                "A Gemini web subscription cannot be used as an API key. Create a key in Google AI Studio; "
+                "Gemini API free/paid quotas and billing are separate.",
+            )
+        )
+        first, second = st.columns(2)
+        first.link_button(
+            _ui("创建 Gemini API Key", "Create Gemini API key"),
+            "https://aistudio.google.com/app/apikey",
+            use_container_width=True,
+        )
+        second.link_button(
+            _ui("查看 API 计费说明", "Gemini API billing"),
+            "https://ai.google.dev/gemini-api/docs/billing",
+            use_container_width=True,
+        )
+        st.caption(
+            _ui(
+                "默认使用 gemini-3.6-flash；应用通过 Google 官方 OpenAI 兼容端点连接。",
+                "Default: gemini-3.6-flash, connected through Google's official OpenAI-compatible endpoint.",
+            )
+        )
+    st.caption(
+        _ui(
+            "密钥仅保存在主机的 .leettutor/secrets.json（仅当前用户可读），不会写入 config.json。",
+            "The key is stored only on the host in .leettutor/secrets.json (owner-readable only), never in config.json.",
+        )
+    )
+
+
+def render_lan_access_panel() -> None:
+    lan_url = os.getenv("LEETTUTOR_LAN_URL", "").strip()
+    if not lan_url:
+        return
+    with st.expander(_ui("📱 主机模式访问", "📱 Host mode access"), expanded=True):
+        try:
+            st.image(qr_png_data_url(lan_url), width=168)
+        except (ImportError, OSError, ValueError) as exc:
+            st.warning(
+                _ui("二维码暂时无法生成：", "Could not create QR code: ")
+                + str(exc)
+            )
+        st.code(lan_url, language=None)
+        st.caption(
+            _ui(
+                "手机与运行 LeetTutor 的主机连接同一可信 Wi‑Fi。首次扫码验证后，"
+                "同一浏览器可记住主机 30 天；不要做路由器端口转发。",
+                "Keep the phone and LeetTutor host on the same trusted Wi-Fi. After the first verification, this browser can trust the host for 30 days. Do not port-forward this service.",
+            )
+        )
+
+
 def render_model_center(
     *, provider: str, endpoint: str, config: AppConfig
 ) -> None:
     """Show hardware-aware recommendations and provider-specific installation."""
+
+    if is_cloud_provider(provider):
+        with st.expander(
+            _ui("云端 API 设置", "Cloud API setup"),
+            expanded=not bool(config.api_key_for(provider)),
+        ):
+            render_cloud_provider_setup(provider, config)
+        return
 
     if "hardware_profile" not in st.session_state:
         st.session_state.hardware_profile = detect_hardware()
@@ -3040,7 +4099,9 @@ def render_model_center(
                     status_slot.success(
                         f"{recommendation.ollama_id} 已就绪（{final_status}）。"
                     )
-                    st.session_state.model_manual = recommendation.ollama_id
+                    st.session_state[
+                        f"model_manual_{provider_state_slug('Ollama')}"
+                    ] = recommendation.ollama_id
                     choice_key = "model_choice_ollama"
                     st.session_state[choice_key] = "手动输入…"
                     models = st.session_state.available_models["Ollama"]
@@ -3071,22 +4132,82 @@ def render_sidebar(
     config: AppConfig, mode: str
 ) -> tuple[ProviderSettings, str, float, float, str, int]:
     with st.sidebar:
-        st.header(_ui("本地模型", "Local model"))
+        render_lan_access_panel()
+        st.header(_ui("模型服务", "Model service"))
         provider = st.selectbox(
             "API Provider", list(config.endpoints), key="provider"
         )
-        endpoint_key = {
-            "Ollama": "endpoint_ollama",
-            "LM Studio": "endpoint_lm_studio",
-            AMD_METAL_PROVIDER: "endpoint_amd_metal",
-        }[provider]
-        endpoint = st.text_input("API Endpoint", key=endpoint_key)
+        endpoint_key = PROVIDER_ENDPOINT_KEYS[provider]
+        if is_cloud_provider(provider):
+            endpoint = config.endpoints[provider]
+            st.text_input(
+                "API Endpoint",
+                value=endpoint,
+                disabled=True,
+                help=_ui(
+                    "云端 Provider 固定使用官方 HTTPS 端点。",
+                    "Cloud providers use their official HTTPS endpoint.",
+                ),
+                key=f"official_endpoint_{provider_state_slug(provider)}",
+            )
+        else:
+            endpoint = st.text_input("API Endpoint", key=endpoint_key)
+
+        if is_cloud_provider(provider):
+            key_configured = bool(config.api_key_for(provider))
+            lan_mode = os.getenv("LEETTUTOR_LAN_MODE", "") == "1"
+            if lan_mode:
+                st.text_input(
+                    "API Key",
+                    value=(
+                        _ui("已在主机配置", "Configured on host")
+                        if key_configured
+                        else ""
+                    ),
+                    type="password",
+                    disabled=True,
+                    help=_ui(
+                        "局域网 HTTP 页面不允许编辑密钥。请在主机本地启动普通模式后配置，或使用 .env。",
+                        "Keys cannot be edited over the LAN HTTP page. Configure one locally on the host or through .env.",
+                    ),
+                    key=f"lan_key_status_{provider_state_slug(provider)}",
+                )
+                if not key_configured:
+                    st.warning(
+                        _ui(
+                            "尚未配置 API Key。请先在主机本地启动并保存密钥，再使用主机模式。",
+                            "No API key is configured. Start LeetTutor locally on the host and save the key before using host mode.",
+                        )
+                    )
+            else:
+                replacement = st.text_input(
+                    "API Key",
+                    value="",
+                    type="password",
+                    placeholder=(
+                        _ui("已配置；留空保持不变", "Configured; leave blank to keep it")
+                        if key_configured
+                        else _ui("粘贴 API Key", "Paste API key")
+                    ),
+                    help=_ui(
+                        "输入内容不会回显；保存后写入仅当前系统用户可读的本地密钥文件。",
+                        "The existing value is never displayed. Saving writes it to an owner-only local secrets file.",
+                    ),
+                    key=f"replacement_key_{provider_state_slug(provider)}",
+                ).strip()
+                if replacement:
+                    config.api_keys[provider] = replacement
 
         settings = provider_settings(provider, endpoint, config)
         render_model_center(
             provider=provider, endpoint=endpoint, config=config
         )
-        if st.button(_ui("检测服务并刷新模型", "Check service and refresh models"), use_container_width=True):
+        if st.button(
+            _ui("检测服务并刷新模型", "Check service and refresh models"),
+            use_container_width=True,
+            disabled=is_cloud_provider(provider)
+            and not bool(config.api_key_for(provider)),
+        ):
             try:
                 models = LocalLLMClient(settings).list_models()
             except LocalLLMError as exc:
@@ -3101,7 +4222,8 @@ def render_sidebar(
         models = st.session_state.available_models.get(provider, [])
         manual_option = _ui("手动输入…", "Enter manually…")
         options = [manual_option, *models]
-        choice_key = f"model_choice_{provider.lower().replace(' ', '_')}"
+        provider_slug = provider_state_slug(provider)
+        choice_key = f"model_choice_{provider_slug}"
         if st.session_state.get(choice_key) not in options:
             st.session_state[choice_key] = manual_option
         selected_model = st.selectbox(
@@ -3110,51 +4232,61 @@ def render_sidebar(
         if selected_model == manual_option:
             model = st.text_input(
                 "Model Name",
-                key="model_manual",
-                placeholder=_ui("例如 qwen3.5:9b", "For example qwen3.5:9b"),
+                key=f"model_manual_{provider_slug}",
+                placeholder=(
+                    default_models().get(provider)
+                    or _ui("例如 qwen3.5:9b", "For example qwen3.5:9b")
+                ),
             ).strip()
         else:
             model = selected_model
             st.caption(_ui("当前模型：", "Current model: ") + f"`{model}`")
 
-        profile: HardwareProfile = st.session_state.hardware_profile
-        slow_cpu_model = any(
-            marker in model.casefold()
-            for marker in ("14b", "27b", "30b", "32b", "70b")
-        )
-        if (
-            provider == "Ollama"
-            and model
-            and not profile.ollama_gpu_supported
-            and slow_cpu_model
-        ):
-            st.warning(
-                "当前是 CPU-only 推理，这个模型会明显偏慢。导师对练建议改用 "
-                "`qwen3.5:9b`；大模型可以留给不赶时间的深度 Review。"
+        if is_cloud_provider(provider):
+            generation = cloud_generation_defaults()
+        else:
+            profile: HardwareProfile = st.session_state.hardware_profile
+            slow_cpu_model = any(
+                marker in model.casefold()
+                for marker in ("14b", "27b", "30b", "32b", "70b")
             )
-        if (
-            model
-            and "qwen3.6" in model.casefold()
-            and (profile.vram_gb or 0) <= 8
-        ):
-            st.warning(
-                "Qwen 3.6 27B 的 Q4 文件约 17 GB，无法完整放进 8 GB 显存；"
-                "它会使用 CPU + GPU 混合推理。可运行，但实时导师体验通常不如 "
-                "Qwen 3.5 9B。"
-            )
+            if (
+                provider == "Ollama"
+                and model
+                and not profile.ollama_gpu_supported
+                and slow_cpu_model
+            ):
+                st.warning(
+                    "当前是 CPU-only 推理，这个模型会明显偏慢。导师对练建议改用 "
+                    "`qwen3.5:9b`；大模型可以留给不赶时间的深度 Review。"
+                )
+            if (
+                model
+                and "qwen3.6" in model.casefold()
+                and (profile.vram_gb or 0) <= 8
+            ):
+                st.warning(
+                    "Qwen 3.6 27B 的 Q4 文件约 17 GB，无法完整放进 8 GB 显存；"
+                    "它会使用 CPU + GPU 混合推理。可运行，但实时导师体验通常不如 "
+                    "Qwen 3.5 9B。"
+                )
 
-        generation_profile = (
-            replace(profile, ollama_gpu_supported=True)
-            if provider == AMD_METAL_PROVIDER
-            else profile
-        )
-        generation = recommend_generation_defaults(generation_profile, model)
+            generation_profile = (
+                replace(profile, ollama_gpu_supported=True)
+                if provider == AMD_METAL_PROVIDER
+                else profile
+            )
+            generation = recommend_generation_defaults(generation_profile, model)
         auto_tune = st.toggle(
-            _ui("根据硬件和模型自动调优", "Auto-tune for hardware and model"),
+            (
+                _ui("使用云端导师推荐参数", "Use recommended cloud tutor settings")
+                if is_cloud_provider(provider)
+                else _ui("根据硬件和模型自动调优", "Auto-tune for hardware and model")
+            ),
             key="auto_tune",
             help=_ui(
-                "按显存、内存和模型体积自动设置超时、上下文、思考强度与输出额度。",
-                "Set timeout, context, reasoning, and output limits from VRAM, RAM, and model size.",
+                "自动设置适合逐步导师对话的超时、上下文、思考强度与输出额度。",
+                "Set timeout, context, reasoning, and output limits for incremental tutor dialogue.",
             ),
         )
         if auto_tune:
@@ -3179,7 +4311,9 @@ def render_sidebar(
             st.session_state.max_tokens_system_design = (
                 generation.system_design_max_tokens
             )
-            if provider == AMD_METAL_PROVIDER:
+            if is_cloud_provider(provider):
+                offload_label = _ui("官方云端推理", "Hosted cloud inference")
+            elif provider == AMD_METAL_PROVIDER:
                 offload_label = _ui(
                     "Radeon 私有显存完整加载", "Fully loaded in Radeon private VRAM"
                 )
@@ -3265,6 +4399,20 @@ def render_sidebar(
                     "The experimental AMD Metal backend keeps long reasoning off so it can return a final answer promptly.",
                 )
             )
+        elif provider == OPENAI_PROVIDER and model.casefold().startswith("gpt-5"):
+            st.caption(
+                _ui(
+                    "GPT-5 系列请求不会发送 Temperature / Top P；请使用“深度思考”控制推理强度。",
+                    "Temperature and Top P are not sent to GPT-5 models; use Reasoning effort instead.",
+                )
+            )
+        elif provider == GEMINI_PROVIDER and reasoning_effort == "none":
+            st.caption(
+                _ui(
+                    "Gemini 3 可能仍使用模型默认思考预算；“关闭”表示应用不额外请求更高推理强度。",
+                    "Gemini 3 may still use its default thinking budget; Off means the app does not request extra reasoning.",
+                )
+            )
         max_tokens_key = (
             "max_tokens_algorithm"
             if mode == "algorithm"
@@ -3291,6 +4439,7 @@ def render_sidebar(
         config.provider = provider
         config.endpoints[provider] = endpoint
         config.model = model
+        config.models[provider] = model
         config.auto_tune = bool(auto_tune)
         config.context_tokens = int(st.session_state.context_tokens)
         config.temperatures["algorithm"] = float(
@@ -3322,10 +4471,16 @@ def render_sidebar(
         if left.button(_ui("保存设置", "Save settings"), use_container_width=True):
             try:
                 save_config(config)
+                save_secrets(config.api_keys)
             except ConfigError as exc:
                 st.error(str(exc))
             else:
-                st.success("已保存到本地 config.json。")
+                st.success(
+                    _ui(
+                        "设置已保存；云端密钥单独保存在本机私密文件中。",
+                        "Settings saved; cloud keys are stored separately in a private local file.",
+                    )
+                )
         if right.button(_ui("清空对话", "Clear chat"), use_container_width=True):
             st.session_state[f"{mode}_messages"] = []
             st.rerun()
@@ -3333,12 +4488,20 @@ def render_sidebar(
         if st.button(_ui("在 VS Code 中打开仓库", "Open repository in VS Code"), use_container_width=True):
             open_in_vscode()
 
-        st.caption(
-            _ui(
-                "只有点击运行时才会在受限子进程执行编辑器代码；AI 对话只发送到你配置的 API Endpoint。",
-                "Editor code runs in a restricted subprocess only when you click Run; AI chat is sent only to your configured API endpoint.",
+        if is_cloud_provider(provider):
+            st.caption(
+                _ui(
+                    "代码只在主机上点击运行后执行；题目、代码和对话上下文会发送给所选云端 API。",
+                    "Code runs on the host only after you click Run; problem, code, and chat context are sent to the selected cloud API.",
+                )
             )
-        )
+        else:
+            st.caption(
+                _ui(
+                    "只有点击运行时才会在受限子进程执行编辑器代码；AI 对话只发送到你配置的 API Endpoint。",
+                    "Editor code runs in a restricted subprocess only when you click Run; AI chat is sent only to your configured API endpoint.",
+                )
+            )
 
     return (
         settings,
@@ -5328,6 +6491,7 @@ def render_app_header(
 
 def main() -> None:
     configure_page()
+    require_lan_access()
     config = initialize_state()
 
     if st.session_state.config_load_error:

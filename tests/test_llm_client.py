@@ -10,6 +10,7 @@ from leettutor.llm_client import (
     normalize_base_url,
 )
 from leettutor.metal_runtime import AMD_METAL_API_KEY, AMD_METAL_PROVIDER
+from leettutor.providers import GEMINI_PROVIDER, OPENAI_PROVIDER
 
 
 @pytest.mark.parametrize(
@@ -19,6 +20,12 @@ from leettutor.metal_runtime import AMD_METAL_API_KEY, AMD_METAL_PROVIDER
         ("Ollama", "localhost:11434/", "http://localhost:11434/v1"),
         ("LM Studio", "http://localhost:1234/v1/", "http://localhost:1234/v1"),
         (AMD_METAL_PROVIDER, "http://127.0.0.1:11435", "http://127.0.0.1:11435/v1"),
+        (OPENAI_PROVIDER, "https://api.openai.com/v1/", "https://api.openai.com/v1"),
+        (
+            GEMINI_PROVIDER,
+            "https://generativelanguage.googleapis.com/v1beta/openai/",
+            "https://generativelanguage.googleapis.com/v1beta/openai",
+        ),
     ],
 )
 def test_normalize_base_url(provider: str, raw: str, expected: str) -> None:
@@ -86,6 +93,80 @@ def test_lm_studio_receives_qwen_thinking_controls() -> None:
     assert requests[0]["extra_body"] == {
         "chat_template_kwargs": {"enable_thinking": True}
     }
+
+
+def test_cloud_provider_requires_its_own_api_key() -> None:
+    with pytest.raises(LocalLLMError, match="网页会员登录不能代替 API Key"):
+        LocalLLMClient(
+            ProviderSettings(OPENAI_PROVIDER, "https://api.openai.com/v1"),
+            client_factory=lambda **_kwargs: object(),
+        )
+
+
+@pytest.mark.parametrize(
+    ("provider", "endpoint", "model", "expected_limit"),
+    [
+        (
+            OPENAI_PROVIDER,
+            "https://api.openai.com/v1",
+            "gpt-5.6-terra",
+            "max_completion_tokens",
+        ),
+        (
+            GEMINI_PROVIDER,
+            "https://generativelanguage.googleapis.com/v1beta/openai",
+            "gemini-3.6-flash",
+            "max_tokens",
+        ),
+    ],
+)
+def test_cloud_requests_use_provider_compatible_parameters(
+    provider: str, endpoint: str, model: str, expected_limit: str
+) -> None:
+    class Value:
+        def __init__(self, **values):
+            self.__dict__.update(values)
+
+    client_options: dict[str, object] = {}
+    requests: list[dict[str, object]] = []
+
+    class FakeClient:
+        def __init__(self) -> None:
+            self.models = Value(list=lambda: Value(data=[]))
+            self.chat = Value(
+                completions=Value(
+                    create=lambda **kwargs: requests.append(kwargs) or iter([])
+                )
+            )
+
+    def client_factory(**kwargs):
+        client_options.update(kwargs)
+        return FakeClient()
+
+    client = LocalLLMClient(
+        ProviderSettings(provider, endpoint, api_key="secret-test-key"),
+        client_factory=client_factory,
+    )
+    list(
+        client.stream_chat(
+            messages=[{"role": "user", "content": "hello"}],
+            model=model,
+            temperature=0.2,
+            top_p=0.9,
+            reasoning_effort="low",
+            max_tokens=1024,
+        )
+    )
+
+    assert client_options["api_key"] == "secret-test-key"
+    assert requests[0][expected_limit] == 1024
+    assert requests[0]["reasoning_effort"] == "low"
+    if provider == OPENAI_PROVIDER:
+        assert "temperature" not in requests[0]
+        assert "top_p" not in requests[0]
+    else:
+        assert requests[0]["temperature"] == 0.2
+        assert requests[0]["top_p"] == 0.9
 
 
 def test_amd_metal_forces_qwen_thinking_off() -> None:

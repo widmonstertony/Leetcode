@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
+import socket
 import shutil
 import subprocess
 import sys
@@ -22,6 +23,12 @@ from leettutor.metal_runtime import (
     MetalRuntimeHandle,
     ensure_metal_runtime,
     is_intel_macos,
+)
+from leettutor.lan import (
+    build_lan_url,
+    find_lan_ipv4,
+    generate_access_code,
+    load_or_create_trust_secret,
 )
 
 
@@ -92,11 +99,22 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--vscode", action="store_true", help="Also open the repository in VS Code."
     )
+    parser.add_argument(
+        "--lan",
+        action="store_true",
+        help="Allow password-protected access from other devices on this LAN.",
+    )
+    parser.add_argument(
+        "--port", type=int, default=8501, help="Streamlit port (default: 8501)."
+    )
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
+    if not 1024 <= args.port <= 65535:
+        print("[LeetTutor] 端口必须在 1024 到 65535 之间。", file=sys.stderr)
+        return 2
     try:
         python = prepare_environment(skip_install=args.skip_install)
     except (OSError, subprocess.CalledProcessError) as exc:
@@ -118,6 +136,29 @@ def main() -> int:
             owner = "已自动启动" if metal_runtime.managed else "已经运行"
             print(f"[LeetTutor] Qwen3.5 9B GPU 服务{owner}：{AMD_METAL_ENDPOINT}")
 
+    environment = os.environ.copy()
+    server_address = "localhost"
+    if args.lan:
+        server_address = "0.0.0.0"
+        lan_host = find_lan_ipv4() or f"{socket.gethostname()}.local"
+        lan_url = build_lan_url(lan_host, args.port)
+        access_code = environment.get("LEETTUTOR_ACCESS_CODE", "").strip()
+        if not access_code:
+            access_code = generate_access_code()
+        environment["LEETTUTOR_LAN_MODE"] = "1"
+        environment["LEETTUTOR_LAN_URL"] = lan_url
+        environment["LEETTUTOR_ACCESS_CODE"] = access_code
+        environment.setdefault(
+            "LEETTUTOR_LAN_TRUST_SECRET",
+            load_or_create_trust_secret(
+                PROJECT_ROOT / ".leettutor" / "lan-trust-secret"
+            ),
+        )
+        print(f"[LeetTutor] 手机访问地址：{lan_url}")
+        print(f"[LeetTutor] 本次访问码：{access_code}")
+        print("[LeetTutor] 首次验证后，可在该浏览器记住此主机 30 天。")
+        print("[LeetTutor] 手机与主机必须在同一 Wi-Fi；请勿把端口映射到公网。")
+
     print("[LeetTutor] 正在启动；浏览器会自动打开。按 Ctrl+C 停止。")
     command = [
         str(python),
@@ -125,11 +166,11 @@ def main() -> int:
         "streamlit",
         "run",
         str(PROJECT_ROOT / "app.py"),
-        "--server.address=localhost",
+        f"--server.address={server_address}",
+        f"--server.port={args.port}",
         "--server.headless=false",
         "--client.toolbarMode=viewer",
     ]
-    environment = os.environ.copy()
     if metal_runtime is not None:
         environment.setdefault("LEETTUTOR_AMD_METAL_URL", AMD_METAL_ENDPOINT)
         environment.setdefault("LEETTUTOR_MODEL", AMD_METAL_MODEL)
