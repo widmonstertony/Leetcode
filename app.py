@@ -1,4 +1,4 @@
-"""Streamlit entry point for LeetTutor-Local."""
+"""Streamlit entry point for LeetTutor — JARVIS Learning System."""
 
 from __future__ import annotations
 
@@ -774,10 +774,28 @@ def install_workspace_split_controller() -> None:
         (() => {
           const win = window.parent;
           const doc = win.document;
+          const controllerVersion = 2;
           const storageKey = "leettutor-workspace-split-v1";
           const defaultRatio = 0.45;
           const minRatio = 0.26;
           const maxRatio = 0.74;
+
+          // components.html runs again after a Streamlit rerun, while objects
+          // installed on the parent window survive. Tear down older controller
+          // instances so the current resize logic is always the one in charge.
+          if (win.__leettutorSplitControllerVersion !== controllerVersion) {
+            win.__leettutorSplitObserver?.disconnect();
+            win.__leettutorSplitResizeObserver?.disconnect();
+            if (win.__leettutorSplitWindowResize) {
+              win.removeEventListener("resize", win.__leettutorSplitWindowResize);
+            }
+            win.cancelAnimationFrame(win.__leettutorSplitBindFrame || 0);
+            delete win.__leettutorSplitObserver;
+            delete win.__leettutorSplitResizeObserver;
+            delete win.__leettutorSplitObservedHorizontal;
+            delete win.__leettutorSplitWindowResize;
+            win.__leettutorSplitControllerVersion = controllerVersion;
+          }
 
           const clampRatio = (value) => Math.max(minRatio, Math.min(maxRatio, value));
           const readRatio = () => {
@@ -857,7 +875,34 @@ def install_workspace_split_controller() -> None:
             }
           };
 
-          const bind = () => {
+          const stopObservingLayout = () => {
+            win.__leettutorSplitResizeObserver?.disconnect();
+            delete win.__leettutorSplitResizeObserver;
+            delete win.__leettutorSplitObservedHorizontal;
+          };
+
+          let bind = () => {};
+          const scheduleBind = () => {
+            win.cancelAnimationFrame(win.__leettutorSplitBindFrame || 0);
+            win.__leettutorSplitBindFrame = win.requestAnimationFrame(() => bind());
+          };
+
+          const observeLayout = (horizontal) => {
+            if (win.__leettutorSplitObservedHorizontal === horizontal) return;
+            stopObservingLayout();
+            if (!win.ResizeObserver) return;
+            let previousWidth = horizontal.getBoundingClientRect().width;
+            win.__leettutorSplitObservedHorizontal = horizontal;
+            win.__leettutorSplitResizeObserver = new win.ResizeObserver(() => {
+              const width = horizontal.getBoundingClientRect().width;
+              if (Math.abs(width - previousWidth) < 0.5) return;
+              previousWidth = width;
+              scheduleBind();
+            });
+            win.__leettutorSplitResizeObserver.observe(horizontal);
+          };
+
+          bind = () => {
             const layout = findLayout();
             if (!layout) {
               // A third docked mentor column (or a hidden pane) means this is no
@@ -865,9 +910,18 @@ def install_workspace_split_controller() -> None:
               // by the splitter so Streamlit can size every visible column again.
               clearColumnOverrides();
               removeOrphanHandles();
+              stopObservingLayout();
               return;
             }
+            // The sidebar and Streamlit shell can finish their own layout after
+            // this controller first runs. Make the workspace claim the complete
+            // row, then watch that row (not just window.resize) so newly available
+            // pixels are immediately assigned to the code pane.
+            layout.horizontal.style.width = "100%";
+            layout.horizontal.style.maxWidth = "none";
+            layout.horizontal.style.minWidth = "0";
             layout.horizontal.style.position = "relative";
+            observeLayout(layout.horizontal);
             let handle = layout.horizontal.querySelector(".leettutor-split-handle");
             if (!handle) {
               handle = doc.createElement("div");
@@ -951,15 +1005,18 @@ def install_workspace_split_controller() -> None:
               return;
             }
             if (!win.__leettutorSplitObserver) {
-              let frame = 0;
-              win.__leettutorSplitObserver = new win.MutationObserver(() => {
-                win.cancelAnimationFrame(frame);
-                frame = win.requestAnimationFrame(bind);
-              });
+              win.__leettutorSplitObserver = new win.MutationObserver(scheduleBind);
               win.__leettutorSplitObserver.observe(target, {childList: true, subtree: true});
-              win.addEventListener("resize", bind);
+              win.__leettutorSplitWindowResize = scheduleBind;
+              win.addEventListener("resize", win.__leettutorSplitWindowResize);
             }
             bind();
+            // Fonts, sidebar hydration and Streamlit's initial flex pass may settle
+            // over several frames. These bounded follow-ups eliminate a first-open
+            // gap without polling after the page is stable.
+            for (const delay of [0, 80, 240, 600]) {
+              win.setTimeout(scheduleBind, delay);
+            }
           };
           start();
         })();
@@ -1181,6 +1238,132 @@ def install_mobile_client_controller() -> None:
               win.addEventListener("resize", sync);
             }
             sync();
+          };
+          start();
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
+def install_sidebar_resize_controller() -> None:
+    """Preserve Streamlit's native sidebar resizing and remember its width."""
+
+    components.html(
+        r"""
+        <script>
+        (() => {
+          const win = window.parent;
+          const doc = win.document;
+          const controllerVersion = 1;
+          const storageKey = "leettutor-sidebar-width-v1";
+          const minWidth = 280;
+          const maxWidth = () => Math.max(
+            minWidth,
+            Math.min(520, Math.floor(win.innerWidth * 0.55)),
+          );
+          const clamp = (value) => Math.max(
+            minWidth,
+            Math.min(maxWidth(), Math.round(value)),
+          );
+
+          if (win.__leettutorSidebarResizeControllerVersion !== controllerVersion) {
+            win.__leettutorSidebarMutationObserver?.disconnect();
+            win.__leettutorSidebarResizeObserver?.disconnect();
+            delete win.__leettutorSidebarMutationObserver;
+            delete win.__leettutorSidebarResizeObserver;
+            win.__leettutorSidebarResizeControllerVersion = controllerVersion;
+          }
+
+          const load = () => {
+            try {
+              const value = Number(win.localStorage.getItem(storageKey));
+              return Number.isFinite(value) && value >= minWidth
+                ? clamp(value)
+                : null;
+            } catch (_) {
+              return null;
+            }
+          };
+          const save = (value) => {
+            try { win.localStorage.setItem(storageKey, String(clamp(value))); }
+            catch (_) {}
+          };
+          const publish = (sidebar) => {
+            const expanded = sidebar?.getAttribute("aria-expanded") === "true";
+            const width = expanded ? sidebar.getBoundingClientRect().width : 0;
+            doc.documentElement.style.setProperty(
+              "--leettutor-sidebar-width",
+              `${Math.max(0, Math.round(width))}px`,
+            );
+            doc.documentElement.style.setProperty(
+              "--leettutor-sidebar-half-width",
+              `${Math.max(0, Math.round(width / 2))}px`,
+            );
+          };
+
+          const bind = () => {
+            const sidebar = doc.querySelector('[data-testid="stSidebar"]');
+            if (!sidebar) return;
+            const expanded = sidebar.getAttribute("aria-expanded") === "true";
+
+            if (win.innerWidth <= 760) {
+              sidebar.__leettutorWasExpanded = expanded;
+              publish(sidebar);
+              return;
+            }
+
+            if (expanded && sidebar.__leettutorWasExpanded !== true) {
+              const saved = load();
+              if (saved) sidebar.style.width = `${saved}px`;
+            }
+            sidebar.__leettutorWasExpanded = expanded;
+
+            if (win.__leettutorSidebarObservedElement !== sidebar) {
+              win.__leettutorSidebarResizeObserver?.disconnect();
+              win.__leettutorSidebarResizeObserver = new win.ResizeObserver(() => {
+                publish(sidebar);
+                if (
+                  win.innerWidth > 760
+                  && sidebar.getAttribute("aria-expanded") === "true"
+                ) {
+                  const width = sidebar.getBoundingClientRect().width;
+                  if (width >= minWidth - 1) save(width);
+                }
+              });
+              win.__leettutorSidebarResizeObserver.observe(sidebar);
+              win.__leettutorSidebarObservedElement = sidebar;
+            }
+            const width = sidebar.getBoundingClientRect().width;
+            if (expanded && width > maxWidth()) {
+              sidebar.style.width = `${maxWidth()}px`;
+            }
+            publish(sidebar);
+          };
+
+          const start = () => {
+            const target = doc.body || doc.documentElement;
+            if (!target) {
+              win.setTimeout(start, 50);
+              return;
+            }
+            if (!win.__leettutorSidebarMutationObserver) {
+              let frame = 0;
+              win.__leettutorSidebarMutationObserver = new win.MutationObserver(() => {
+                win.cancelAnimationFrame(frame);
+                frame = win.requestAnimationFrame(bind);
+              });
+              win.__leettutorSidebarMutationObserver.observe(target, {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                attributeFilter: ["aria-expanded"],
+              });
+              win.addEventListener("resize", bind, {passive: true});
+            }
+            bind();
           };
           start();
         })();
@@ -1468,7 +1651,7 @@ def set_mentor_client_state(
             if (!win.__leettutorMentorOriginalTitle) {{
               win.__leettutorMentorOriginalTitle = doc.title;
             }}
-            doc.title = `⏳ ${{label}} · LeetTutor`;
+            doc.title = `⏳ ${{label}} · LeetTutor — JARVIS`;
           }}
 
           const bindScrollTracking = (attempt = 0) => {{
@@ -1536,7 +1719,7 @@ def set_mentor_client_state(
 
 def configure_page() -> None:
     st.set_page_config(
-        page_title="LeetTutor-Local",
+        page_title="LeetTutor — JARVIS Learning System",
         page_icon="🧠",
         layout="wide",
         initial_sidebar_state="collapsed",
@@ -1747,9 +1930,11 @@ def configure_page() -> None:
             padding-right: 2.5rem;
         }
         [data-testid="stSidebar"][aria-expanded="true"] {
-            width: 330px !important;
-            min-width: 330px !important;
-            flex-basis: 330px !important;
+            /* Streamlit's native 8px resize handle updates the element's
+               inline width. Do not override that value, or the cursor changes
+               while the panel appears frozen. */
+            min-width: 280px;
+            max-width: min(520px, 55vw);
         }
         [data-testid="stSidebar"][aria-expanded="false"] {
             width: 0 !important;
@@ -1971,8 +2156,11 @@ def configure_page() -> None:
         }
         body:has([data-testid="stSidebar"][aria-expanded="true"])
         .st-key-system_command_dock {
-            left: calc(50% + 165px);
-            width: min(820px, calc(100vw - 380px));
+            left: calc(50% + var(--leettutor-sidebar-half-width, 150px));
+            width: min(
+                820px,
+                calc(100vw - var(--leettutor-sidebar-width, 300px) - 3.125rem)
+            );
         }
         .st-key-system_command_dock > [data-testid="stVerticalBlockBorderWrapper"] {
             border: 0;
@@ -3174,6 +3362,7 @@ def configure_page() -> None:
     install_mentor_client_controller()
     install_workspace_split_controller()
     install_mobile_client_controller()
+    install_sidebar_resize_controller()
     install_lan_trust_client_controller()
 
 
