@@ -20,8 +20,10 @@ class FakeResponse:
                 "question": {
                     "questionFrontendId": "704",
                     "title": "Binary Search",
+                    "translatedTitle": "二分查找",
                     "titleSlug": "binary-search",
                     "content": "<p>Find <strong>target</strong>.</p><pre>nums = [1]</pre>",
+                    "translatedContent": "<p>查找 <strong>target</strong>。</p><pre>nums = [1]</pre>",
                     "difficulty": "Easy",
                     "isPaidOnly": False,
                     "exampleTestcases": "[-1,0,3,5,9,12]\n9\n[-1,0,3]\n2",
@@ -32,7 +34,13 @@ class FakeResponse:
                         }
                     ),
                     "hints": ["Keep an invariant"],
-                    "topicTags": [{"name": "Binary Search", "slug": "binary-search"}],
+                    "topicTags": [
+                        {
+                            "name": "Binary Search",
+                            "translatedName": "二分查找",
+                            "slug": "binary-search",
+                        }
+                    ],
                     "codeSnippets": [
                         {
                             "lang": "Python3",
@@ -75,6 +83,19 @@ def test_fetch_problem_extracts_template_method_and_sample_arguments() -> None:
     assert problem.starter_code.rstrip().endswith("pass")
     assert json.loads(problem.sample_cases)[0]["args"] == [[-1, 0, 3, 5, 9, 12], 9]
     assert "**target**" in problem.statement
+    assert problem.content_locale == "en"
+
+
+def test_fetch_problem_uses_official_chinese_translation() -> None:
+    session = FakeSession()
+    problem = fetch_problem("binary-search", locale="zh", session=session)
+
+    assert session.url == "https://leetcode.cn/graphql/"
+    assert problem.title == "二分查找"
+    assert "查找 **target**" in problem.statement
+    assert problem.topics == ("二分查找",)
+    assert problem.content_locale == "zh"
+    assert problem.url == "https://leetcode.cn/problems/binary-search/"
 
 
 def test_html_conversion_preserves_code_blocks() -> None:

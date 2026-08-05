@@ -18,14 +18,16 @@ query questionData($titleSlug: String!) {
   question(titleSlug: $titleSlug) {
     questionFrontendId
     title
+    translatedTitle
     titleSlug
     content
+    translatedContent
     difficulty
     isPaidOnly
     exampleTestcases
     metaData
     hints
-    topicTags { name slug }
+    topicTags { name translatedName slug }
     codeSnippets { lang langSlug code }
   }
 }
@@ -125,6 +127,7 @@ class ImportedProblem:
     hints: tuple[str, ...]
     paid_only: bool
     host: str
+    content_locale: str
 
     @property
     def url(self) -> str:
@@ -186,10 +189,17 @@ def _python_snippet(snippets: list[dict[str, Any]] | None) -> str:
 def fetch_problem(
     reference: str,
     *,
+    locale: str = "en",
     timeout_seconds: float = 12.0,
     session: requests.Session | None = None,
 ) -> ImportedProblem:
-    slug, host = parse_problem_reference(reference)
+    slug, _reference_host = parse_problem_reference(reference)
+    if locale not in {"zh", "en"}:
+        raise ValueError("locale must be 'zh' or 'en'")
+    # LeetCode CN exposes the official translated title and statement.  Keep
+    # the returned URL on the same host so the Open / Submit button matches
+    # the language currently shown in the workspace.
+    host = "leetcode.cn" if locale == "zh" else "leetcode.com"
     endpoint = f"https://{host}/graphql/"
     http = session or requests.Session()
     try:
@@ -216,7 +226,11 @@ def fetch_problem(
     if not isinstance(question, dict):
         raise LeetCodeImportError(f"没有找到题目 `{slug}`。")
     topics = tuple(
-        str(topic.get("name"))
+        str(
+            topic.get("translatedName")
+            if locale == "zh" and topic.get("translatedName")
+            else topic.get("name")
+        )
         for topic in question.get("topicTags") or []
         if topic.get("name")
     )
@@ -224,10 +238,20 @@ def fetch_problem(
     raw_examples = str(question.get("exampleTestcases", ""))
     return ImportedProblem(
         frontend_id=str(question.get("questionFrontendId", "")),
-        title=str(question.get("title", slug)),
+        title=str(
+            question.get("translatedTitle")
+            if locale == "zh" and question.get("translatedTitle")
+            else question.get("title", slug)
+        ),
         slug=str(question.get("titleSlug", slug)),
         difficulty=str(question.get("difficulty", "")),
-        statement=html_to_markdown(str(question.get("content", ""))),
+        statement=html_to_markdown(
+            str(
+                question.get("translatedContent")
+                if locale == "zh" and question.get("translatedContent")
+                else question.get("content", "")
+            )
+        ),
         starter_code=_python_snippet(question.get("codeSnippets")),
         method_name=_method_name(raw_metadata),
         example_testcases=raw_examples,
@@ -236,4 +260,5 @@ def fetch_problem(
         hints=tuple(str(hint) for hint in question.get("hints") or []),
         paid_only=bool(question.get("isPaidOnly")),
         host=host,
+        content_locale=locale,
     )

@@ -7,8 +7,4 @@ runOnSave = true
 gatherUsageStats = false
 
 [client]
-toolbarMode = "minimal"
-
-[theme]
-base = "light"
-primaryColor = "#2563EB"
+toolbarMode = "viewer"

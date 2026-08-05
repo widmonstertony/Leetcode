@@ -127,7 +127,7 @@ def main() -> int:
         str(PROJECT_ROOT / "app.py"),
         "--server.address=localhost",
         "--server.headless=false",
-        "--client.toolbarMode=minimal",
+        "--client.toolbarMode=viewer",
     ]
     environment = os.environ.copy()
     if metal_runtime is not None:
