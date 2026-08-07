@@ -18,16 +18,21 @@ def test_app_starts_without_contacting_a_model() -> None:
 
 
 
-def test_chat_submission_renders_activity_ui_without_a_selected_model() -> None:
+def test_chat_submission_is_preserved_without_a_selected_model() -> None:
     app_path = Path(__file__).resolve().parents[1] / "app.py"
     app = AppTest.from_file(str(app_path)).run(timeout=20)
+    model = next(item for item in app.text_input if item.label == "Model Name")
+    model.set_value("").run(timeout=20)
     question = next(item for item in app.text_area if item.label == "继续回复 JARVIS")
     send = next(item for item in app.button if item.label == "发送给 JARVIS")
     question.set_value("先提示我下一步")
     send.click().run(timeout=20)
 
     assert not app.exception
-    assert any("模型调用失败" in status.label for status in app.status)
+    assert any(
+        "先在左侧选择或填写本地模型" in warning.value
+        for warning in app.warning
+    )
     assert any("先提示我下一步" in item.value for item in app.markdown)
     cleared_question = next(
         item for item in app.text_area if item.label == "继续回复 JARVIS"
