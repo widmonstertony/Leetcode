@@ -4,6 +4,16 @@
 
 **LeetTutor · Made by Tony** 是互动式 LeetCode 与系统设计学习助手。内置导师 **JARVIS** 会根据薄弱项和练习进度安排下一题；界面运行在浏览器中，可以直接导入题目、写 Python、跑自定义测试，并把当前代码现场交给 AI。模型既可完全留在本机，也可选择 OpenAI API 或 Gemini API；任意能运行本项目的电脑都可以开启局域网主机模式，让同一 Wi-Fi 内的手机或平板继续刷题。
 
+## 在线源码演示 + 本机模型
+
+[tonytan.me/leetcode/](https://tonytan.me/leetcode/) 运行仓库内 `web-demo` 的账号无关演示。网页、代码草稿和界面由服务器静态托管，但 AI 请求不会经过 EC2；先在自己的电脑启动 Ollama 或 LM Studio，再在仓库根目录运行：
+
+```bash
+python3 scripts/browser_bridge.py
+```
+
+桥接器只监听 `127.0.0.1:8766`，只接受本站和本机开发 Origin，并且只能转发到本机的 OpenAI 兼容端点。浏览器直接连接它，因此题解、Prompt、模型名和回复都留在当前电脑。LM Studio 可用 `--upstream http://127.0.0.1:1234/v1`。完整 Streamlit 产品仍按下面方式在本机运行。
+
 ## 最快启动
 
 先安装 Python 3.10+。Ollama 本体和模型都可以随后在 LeetTutor 页面内安装。

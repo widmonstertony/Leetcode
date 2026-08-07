@@ -4,6 +4,16 @@
 
 LeetTutor is a local-first AI learning workspace for LeetCode and system design. Its JARVIS mentor chooses the next exercise from your weak areas, reads the live problem/code/test context, and teaches through short Socratic prompts instead of dumping an answer. You can run Python solutions in the browser, use either local or cloud models, and continue on a phone through a trusted home-network host.
 
+## Hosted source demo + model on your computer
+
+[tonytan.me/leetcode/](https://tonytan.me/leetcode/) serves the account-free `web-demo` from this repository. The UI and code draft are static, while model traffic never passes through EC2. Start Ollama or LM Studio on your computer, then run from the repository root:
+
+```bash
+python3 scripts/browser_bridge.py
+```
+
+The bridge binds only to `127.0.0.1:8766`, accepts only the portfolio and local-development origins, and can forward only to a loopback OpenAI-compatible endpoint. Your solution, prompt, model name, and response stay on the computer running the browser. For LM Studio, pass `--upstream http://127.0.0.1:1234/v1`. The full Streamlit product continues to run locally through the quick-start flow below.
+
 ## Highlights
 
 - Mentor-led Algorithm practice for binary search, stacks, heaps, DP, and more.

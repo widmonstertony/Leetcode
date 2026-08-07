@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="description" content="LeetTutor local-first algorithm workspace and JARVIS mentor demo." />
+    <title>LeetTutor — Local JARVIS Workspace</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script type="module" src="./app.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#workspace">Skip to workspace</a>
+    <header class="topbar">
+      <a class="brand" href="/projects/leetcode" aria-label="Back to LeetTutor case study">
+        <span class="brand-mark">LT</span>
+        <span><strong>LeetTutor</strong><small>JARVIS Learning System</small></span>
+      </a>
+      <div class="privacy-pill"><span></span><span data-copy="privacy">LOCAL MODEL · NO SERVER RELAY</span></div>
+      <div class="controls">
+        <label><span data-copy="language">Language</span><select id="language"><option value="system">System</option><option value="en">English</option><option value="zh">中文</option></select></label>
+        <label><span data-copy="theme">Theme</span><select id="theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+      </div>
+    </header>
+
+    <main id="workspace" class="workspace">
+      <section class="problem-pane">
+        <header class="pane-title"><span>1.</span><div><p data-copy="problemLabel">ALGORITHM PRACTICE</p><h1 data-copy="problemTitle">Two Sum</h1></div><span class="difficulty" data-copy="easy">EASY</span></header>
+        <div class="problem-copy">
+          <p data-copy="problemBody">Given an integer array nums and a target, return the indices of the two numbers whose sum equals the target.</p>
+          <h2 data-copy="example">Example</h2>
+          <pre>nums = [2, 7, 11, 15]
+target = 9
+output = [0, 1]</pre>
+          <h2 data-copy="objective">This round</h2>
+          <p data-copy="objectiveBody">Explain what information the hash map stores before writing the final loop.</p>
+          <div class="trace-card">
+            <header><strong data-copy="trace">Complexity trace</strong><span id="trace-status">O(n)</span></header>
+            <div id="trace-steps" class="trace-steps" aria-live="polite"></div>
+            <button id="run-trace" class="secondary" type="button" data-copy="runTrace">Run source example</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="editor-pane">
+        <header class="pane-title compact"><div><p data-copy="editorLabel">PYTHON WORKSPACE</p><h2>solution.py</h2></div><span class="saved" data-copy="localDraft">DRAFT STAYS LOCAL</span></header>
+        <label class="sr-only" for="code" data-copy="editorAria">Python solution</label>
+        <textarea id="code" spellcheck="false">class Solution:
+    def twoSum(self, nums, target):
+        seen = {}
+        for index, value in enumerate(nums):
+            complement = target - value
+            # What should happen next?
+        return []</textarea>
+        <footer class="editor-footer"><span>Python 3</span><button id="review-code" type="button" data-copy="review">Ask JARVIS to review</button></footer>
+      </section>
+
+      <aside class="mentor-pane">
+        <header class="mentor-header"><span class="jarvis-orb">J</span><div><p data-copy="mentorLabel">LOCAL AI MENTOR</p><h2>JARVIS</h2></div><span id="connection-dot" class="connection-dot"></span></header>
+        <div id="messages" class="messages" aria-live="polite">
+          <article class="message assistant"><span>J</span><p data-copy="opening">Before coding, what value would let you know that the current number completes a pair you have already seen?</p></article>
+        </div>
+        <form id="chat-form" class="chat-form">
+          <label for="message" data-copy="replyLabel">Your reasoning</label>
+          <textarea id="message" rows="3" data-placeholder="replyPlaceholder" placeholder="Explain your next step…"></textarea>
+          <button type="submit" data-copy="send">Send to local JARVIS</button>
+        </form>
+      </aside>
+    </main>
+
+    <section class="connection-panel" aria-labelledby="connection-title">
+      <div><p data-copy="connectionEyebrow">PRIVATE CONNECTION</p><h2 id="connection-title" data-copy="connectionTitle">Connect this page to the model on your computer.</h2><p data-copy="connectionBody">The bridge listens only on 127.0.0.1 and forwards directly to Ollama or LM Studio. EC2 never sees your code or conversation.</p></div>
+      <div class="connection-form">
+        <label><span data-copy="bridgeUrl">Bridge URL</span><input id="bridge-url" value="http://127.0.0.1:8766" inputmode="url" /></label>
+        <label><span data-copy="model">Model</span><input id="model" value="qwen3.6:8b" /></label>
+        <button id="test-connection" type="button" data-copy="test">Test local connection</button>
+        <p id="connection-status" role="status" data-copy="notConnected">Not connected yet.</p>
+      </div>
+      <details>
+        <summary data-copy="setup">One-minute setup</summary>
+        <ol>
+          <li data-copy="setup1">Start Ollama (or LM Studio local server) and load a model.</li>
+          <li><code>python3 scripts/browser_bridge.py</code></li>
+          <li data-copy="setup3">Return here and choose “Test local connection.”</li>
+        </ol>
+        <a href="https://github.com/widmonstertony/Leetcode" target="_blank" rel="noopener noreferrer" data-copy="source">Get the source and bridge ↗</a>
+      </details>
+    </section>
+  </body>
+</html>
