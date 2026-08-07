@@ -1,26 +1,53 @@
 #!/usr/bin/env python3
-"""Loopback-only bridge between the hosted LeetTutor demo and a local model.
+"""Loopback-only companion between the hosted LeetTutor UI and local source.
 
 The public site never receives prompts, code, model names, or responses. This
 process binds to 127.0.0.1, accepts only the portfolio/local development
-origins, and forwards two OpenAI-compatible endpoints to a loopback provider.
+origins, exposes a bounded source-backed app API, and forwards the two required
+OpenAI-compatible model endpoints to a loopback provider.
 """
 
 from __future__ import annotations
 
 import argparse
+from dataclasses import asdict
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+from pathlib import Path
 import re
+import sys
 from typing import Final
 from urllib import error as urllib_error
 from urllib import parse as urllib_parse
 from urllib import request as urllib_request
 
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from leettutor.code_runner import CodeValidationError, run_python_solution  # noqa: E402
+from leettutor.curriculum import (  # noqa: E402
+    PROBLEMS,
+    ProgressError,
+    ProgressStore,
+    get_problem,
+)
+from leettutor.leetcode_client import LeetCodeImportError, fetch_problem  # noqa: E402
+from leettutor.solutions import SolutionError, SolutionStore  # noqa: E402
+from leettutor.system_design_curriculum import SYSTEM_DESIGN_CASES  # noqa: E402
+
+
 MAX_BODY_BYTES: Final = 512 * 1024
-ALLOWED_PATHS: Final = {"/v1/models", "/v1/chat/completions"}
+MODEL_PATHS: Final = {"/v1/models", "/v1/chat/completions"}
+APP_POST_PATHS: Final = {
+    "/api/code/run",
+    "/api/problems/import",
+    "/api/progress",
+    "/api/solutions/load",
+    "/api/solutions/save",
+}
 LOCAL_ORIGIN = re.compile(r"^https?://(?:localhost|127\.0\.0\.1)(?::\d+)?$")
 
 
@@ -38,9 +65,37 @@ def join_upstream(base: str, path: str) -> str:
     return base + (path[3:] if base.endswith("/v1") and path.startswith("/v1/") else path)
 
 
+def ollama_chat_payload(payload: dict[str, object]) -> dict[str, object]:
+    """Use Ollama's native no-thinking switch for prompt, bounded tutor turns."""
+    try:
+        requested_tokens = int(payload.get("max_tokens") or 512)
+    except (TypeError, ValueError):
+        requested_tokens = 512
+    try:
+        temperature = float(payload.get("temperature") or 0.2)
+        top_p = float(payload.get("top_p") or 0.9)
+    except (TypeError, ValueError):
+        temperature, top_p = 0.2, 0.9
+    return {
+        "model": str(payload.get("model") or ""),
+        "messages": payload.get("messages") or [],
+        "stream": False,
+        "think": False,
+        "keep_alive": "5m",
+        "options": {
+            "temperature": max(0.0, min(temperature, 2.0)),
+            "top_p": max(0.0, min(top_p, 1.0)),
+            "num_predict": max(64, min(requested_tokens, 1024)),
+            "num_ctx": 8192,
+        },
+    }
+
+
 class BridgeServer(ThreadingHTTPServer):
     upstream: str
     allowed_origins: frozenset[str]
+    project_root: Path
+    progress_path: Path
 
 
 class BridgeHandler(BaseHTTPRequestHandler):
@@ -94,7 +149,41 @@ class BridgeHandler(BaseHTTPRequestHandler):
             return
         path = urllib_parse.urlparse(self.path).path
         if path == "/healthz":
-            self._json({"ok": True, "privacy": "loopback-only", "upstream": self.server.upstream})
+            self._json({
+                "ok": True,
+                "privacy": "loopback-only",
+                "upstream": self.server.upstream,
+                "app": "LeetTutor local companion",
+            })
+            return
+        if path == "/api/catalog":
+            self._json({
+                "ok": True,
+                "problems": [
+                    {**asdict(problem), "url": problem.url}
+                    for problem in PROBLEMS
+                ],
+                "system_design": [asdict(item) for item in SYSTEM_DESIGN_CASES],
+            })
+            return
+        if path == "/api/progress":
+            try:
+                self.server.progress_path.parent.mkdir(parents=True, exist_ok=True)
+                progress = ProgressStore(self.server.progress_path).load()
+            except (ProgressError, OSError) as exc:
+                self._json({"ok": False, "error": str(exc)}, HTTPStatus.BAD_REQUEST)
+                return
+            self._json({"ok": True, "progress": progress})
+            return
+        if path == "/api/solutions":
+            query = urllib_parse.parse_qs(urllib_parse.urlparse(self.path).query)
+            language = str((query.get("language") or ["Python"])[0])
+            try:
+                files = SolutionStore(self.server.project_root).list_files(language)
+            except (SolutionError, OSError) as exc:
+                self._json({"ok": False, "error": str(exc)}, HTTPStatus.BAD_REQUEST)
+                return
+            self._json({"ok": True, "language": language, "files": files})
             return
         if path != "/v1/models":
             self._json({"error": "Not found."}, HTTPStatus.NOT_FOUND)
@@ -106,11 +195,15 @@ class BridgeHandler(BaseHTTPRequestHandler):
             self._json({"error": "Origin is not allowed."}, HTTPStatus.FORBIDDEN)
             return
         path = urllib_parse.urlparse(self.path).path
-        if path != "/v1/chat/completions":
+        if path not in MODEL_PATHS | APP_POST_PATHS:
             self._json({"error": "Not found."}, HTTPStatus.NOT_FOUND)
             return
         content_type = self.headers.get("Content-Type", "").split(";", 1)[0].casefold()
-        length = int(self.headers.get("Content-Length", "0"))
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            self._json({"error": "Invalid Content-Length."}, HTTPStatus.BAD_REQUEST)
+            return
         if content_type != "application/json" or not 0 < length <= MAX_BODY_BYTES:
             self._json({"error": "A bounded JSON body is required."}, HTTPStatus.BAD_REQUEST)
             return
@@ -120,13 +213,74 @@ class BridgeHandler(BaseHTTPRequestHandler):
         except (UnicodeDecodeError, json.JSONDecodeError):
             self._json({"error": "Invalid JSON."}, HTTPStatus.BAD_REQUEST)
             return
-        if not isinstance(payload, dict) or payload.get("stream") is True:
+        if not isinstance(payload, dict):
+            self._json({"error": "JSON body must be an object."}, HTTPStatus.BAD_REQUEST)
+            return
+        if path in APP_POST_PATHS:
+            self._handle_app_post(path, payload)
+            return
+        if payload.get("stream") is True:
             self._json({"error": "Non-streaming OpenAI-compatible requests are required."}, HTTPStatus.BAD_REQUEST)
+            return
+        if path == "/v1/chat/completions" and not self.server.upstream.endswith("/v1"):
+            self._forward_ollama_chat(payload)
             return
         self._forward("POST", path, json.dumps(payload).encode())
 
+    def _handle_app_post(self, path: str, payload: dict[str, object]) -> None:
+        try:
+            if path == "/api/code/run":
+                result = run_python_solution(
+                    source=str(payload.get("source") or ""),
+                    method_name=str(payload.get("method_name") or ""),
+                    test_cases=str(payload.get("test_cases") or ""),
+                    timeout_seconds=float(payload.get("timeout_seconds") or 3.0),
+                )
+                self._json({"ok": True, "result": result.to_dict()})
+                return
+            if path == "/api/problems/import":
+                problem = fetch_problem(
+                    str(payload.get("reference") or ""),
+                    locale=str(payload.get("locale") or "en"),
+                    timeout_seconds=12,
+                )
+                self._json({"ok": True, "problem": problem.to_dict()})
+                return
+            if path == "/api/progress":
+                problem = get_problem(str(payload.get("problem_id") or "0"))
+                status = str(payload.get("status") or "")
+                if problem is None or status not in {"in_progress", "review", "mastered"}:
+                    raise ValueError("A curated problem and valid progress status are required.")
+                self.server.progress_path.parent.mkdir(parents=True, exist_ok=True)
+                progress = ProgressStore(self.server.progress_path).update(problem, status)
+                self._json({"ok": True, "progress": progress})
+                return
+            store = SolutionStore(self.server.project_root)
+            language = str(payload.get("language") or "Python")
+            filename = str(payload.get("filename") or "")
+            if path == "/api/solutions/load":
+                self._json({
+                    "ok": True,
+                    "language": language,
+                    "filename": filename,
+                    "content": store.load(language, filename),
+                })
+                return
+            if path == "/api/solutions/save":
+                saved = store.save(
+                    language,
+                    filename,
+                    str(payload.get("content") or ""),
+                    overwrite=bool(payload.get("overwrite")),
+                )
+                self._json({"ok": True, "path": str(saved.relative_to(self.server.project_root))})
+                return
+            raise ValueError("Unsupported app endpoint.")
+        except (CodeValidationError, LeetCodeImportError, ProgressError, SolutionError, ValueError, OSError) as exc:
+            self._json({"ok": False, "error": str(exc)}, HTTPStatus.BAD_REQUEST)
+
     def _forward(self, method: str, path: str, body: bytes | None) -> None:
-        if path not in ALLOWED_PATHS:
+        if path not in MODEL_PATHS:
             self._json({"error": "Endpoint is not allowed."}, HTTPStatus.FORBIDDEN)
             return
         request = urllib_request.Request(
@@ -147,6 +301,37 @@ class BridgeHandler(BaseHTTPRequestHandler):
             self._headers(len(detail), "application/json; charset=utf-8", HTTPStatus(exc.code))
             self.wfile.write(detail)
         except (OSError, TimeoutError, ValueError) as exc:
+            self._json({"error": f"Local model unavailable: {exc}"}, HTTPStatus.BAD_GATEWAY)
+
+    def _forward_ollama_chat(self, payload: dict[str, object]) -> None:
+        request = urllib_request.Request(
+            self.server.upstream + "/api/chat",
+            data=json.dumps(ollama_chat_payload(payload)).encode(),
+            method="POST",
+            headers={"Accept": "application/json", "Content-Type": "application/json"},
+        )
+        try:
+            with urllib_request.urlopen(request, timeout=180) as response:
+                raw = response.read(MAX_BODY_BYTES + 1)
+            if len(raw) > MAX_BODY_BYTES:
+                raise ValueError("Local model response exceeded the bridge limit.")
+            native = json.loads(raw)
+            content = str((native.get("message") or {}).get("content") or "")
+            self._json({
+                "id": "leettutor-local",
+                "object": "chat.completion",
+                "model": str(native.get("model") or payload.get("model") or ""),
+                "choices": [{
+                    "index": 0,
+                    "message": {"role": "assistant", "content": content},
+                    "finish_reason": str(native.get("done_reason") or "stop"),
+                }],
+            })
+        except urllib_error.HTTPError as exc:
+            detail = exc.read(MAX_BODY_BYTES)
+            self._headers(len(detail), "application/json; charset=utf-8", HTTPStatus(exc.code))
+            self.wfile.write(detail)
+        except (OSError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
             self._json({"error": f"Local model unavailable: {exc}"}, HTTPStatus.BAD_GATEWAY)
 
 
@@ -170,6 +355,8 @@ def main() -> int:
     server = BridgeServer(("127.0.0.1", args.port), BridgeHandler)
     server.upstream = args.upstream
     server.allowed_origins = frozenset(args.allow_origin)
+    server.project_root = PROJECT_ROOT
+    server.progress_path = Path.home() / ".leettutor" / "progress.json"
     print(f"LeetTutor bridge: http://127.0.0.1:{args.port} -> {args.upstream}")
     print("Prompts and responses stay between this browser and your computer.")
     try:

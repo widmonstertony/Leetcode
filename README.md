@@ -4,15 +4,15 @@
 
 **LeetTutor · Made by Tony** 是互动式 LeetCode 与系统设计学习助手。内置导师 **JARVIS** 会根据薄弱项和练习进度安排下一题；界面运行在浏览器中，可以直接导入题目、写 Python、跑自定义测试，并把当前代码现场交给 AI。模型既可完全留在本机，也可选择 OpenAI API 或 Gemini API；任意能运行本项目的电脑都可以开启局域网主机模式，让同一 Wi-Fi 内的手机或平板继续刷题。
 
-## 在线源码演示 + 本机模型
+## 在线真实应用 + 本机源码 / 模型
 
-[tonytan.me/leetcode/](https://tonytan.me/leetcode/) 运行仓库内 `web-demo` 的账号无关演示。网页、代码草稿和界面由服务器静态托管，但 AI 请求不会经过 EC2；先在自己的电脑启动 Ollama 或 LM Studio，再在仓库根目录运行：
+[tonytan.me/leetcode/](https://tonytan.me/leetcode/) 只从服务器加载仓库内的 UI 资源，不运行假题目或服务端模型。启动本机 companion 后，网页会直接调用这个仓库里的 `curriculum`、`system_design_curriculum`、`code_runner`、`leetcode_client` 与 `SolutionStore`：可以切换真实课程、导入任意 LeetCode 题目、在本机受限进程跑测试、保存到克隆仓库、记录进度，并让 JARVIS 结合真实代码和运行结果辅导。
 
 ```bash
-python3 scripts/browser_bridge.py
+./launch_companion.command
 ```
 
-桥接器只监听 `127.0.0.1:8766`，只接受本站和本机开发 Origin，并且只能转发到本机的 OpenAI 兼容端点。浏览器直接连接它，因此题解、Prompt、模型名和回复都留在当前电脑。LM Studio 可用 `--upstream http://127.0.0.1:1234/v1`。完整 Streamlit 产品仍按下面方式在本机运行。
+Windows 双击 `launch_companion.bat`；也可以运行 `python3 scripts/browser_bridge.py`。Companion 只监听 `127.0.0.1:8766`，只接受本站和本机开发 Origin；应用 API 固定调用本仓库的受限功能，模型 API 只能转发到本机 OpenAI 兼容端点。题解、测试、进度、Prompt、模型名和回复都不经过 EC2。LM Studio 使用 `python3 scripts/browser_bridge.py --upstream http://127.0.0.1:1234/v1`。完整 Streamlit 产品仍按下面方式在本机运行。
 
 ## 最快启动
 
@@ -177,9 +177,11 @@ Leetcode/
 ├── assets/                    # JARVIS 原创全息 AI 视觉资源
 ├── leettutor/                 # 导师、LeetCode 导题、代码运行与模型适配层
 ├── scripts/launch.py          # 跨平台启动器
+├── scripts/browser_bridge.py  # 仅回环的真实 Web companion 与本机模型桥
 ├── scripts/setup_intel_amd_metal.py # Intel Radeon 自检与安装备用入口
 ├── patches/                   # 固定版本的 AMD Metal / Qwen 兼容补丁
 ├── run.command / run.bat      # macOS / Windows 本机一键启动
+├── launch_companion.command / .bat # 连接 tonytan.me UI 的一键启动器
 ├── run-lan.command / .bat     # 局域网主机模式手机入口
 ├── tests/                     # 不依赖本地模型的测试
 ├── python/                    # Python 重刷题解
