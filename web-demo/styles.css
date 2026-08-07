@@ -99,7 +99,8 @@ pre { overflow: auto; padding: 15px; border-radius: 10px; background: var(--pane
 .editor-pane .saved { color: #89d5a0; }
 #code { width: 100%; min-height: 500px; resize: none; border: 0; outline: 0; padding: 28px; background: transparent; color: #e8eef6; font: 14px/1.75 "SFMono-Regular", Consolas, monospace; tab-size: 4; }
 .editor-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-top: 1px solid #283140; color: #96a4b6; font-size: .7rem; }
-.editor-footer button, .chat-form button, .connection-form button { padding: 10px 14px; border: 0; border-radius: 8px; background: var(--accent); color: #18130a; font-weight: 850; }
+.editor-footer button, .chat-form button, .connection-form button, .connection-form .local-open { padding: 10px 14px; border: 0; border-radius: 8px; background: var(--accent); color: #18130a; font-weight: 850; }
+.connection-form .local-open { display: block; text-align: center; text-decoration: none; }
 .editor-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .editor-actions .secondary { width: auto; border-color: #3a4658; background: transparent; color: #d7e0ec; }
 
