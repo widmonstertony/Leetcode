@@ -4,15 +4,15 @@
 
 LeetTutor is a local-first AI learning workspace for LeetCode and system design. Its JARVIS mentor chooses the next exercise from your weak areas, reads the live problem/code/test context, and teaches through short Socratic prompts instead of dumping an answer. You can run Python solutions in the browser, use either local or cloud models, and continue on a phone through a trusted home-network host.
 
-## Hosted source demo + model on your computer
+## Hosted real app + source/model on your computer
 
-[tonytan.me/leetcode/](https://tonytan.me/leetcode/) serves the account-free `web-demo` from this repository. The UI and code draft are static, while model traffic never passes through EC2. Start Ollama or LM Studio on your computer, then run from the repository root:
+[tonytan.me/leetcode/](https://tonytan.me/leetcode/) downloads only versioned UI assets from the server; it does not use fake missions or a server-side model. Once the local companion is running, the page calls this repository's real curriculum, system-design catalog, constrained code runner, LeetCode importer, SolutionStore, and progress store. It can import a problem, execute tests locally, save into the clone, and give JARVIS the real code and run result.
 
 ```bash
-python3 scripts/browser_bridge.py
+./launch_companion.command
 ```
 
-The bridge binds only to `127.0.0.1:8766`, accepts only the portfolio and local-development origins, and can forward only to a loopback OpenAI-compatible endpoint. Your solution, prompt, model name, and response stay on the computer running the browser. For LM Studio, pass `--upstream http://127.0.0.1:1234/v1`. The full Streamlit product continues to run locally through the quick-start flow below.
+On Windows, double-click `launch_companion.bat`; `python3 scripts/browser_bridge.py` is the direct equivalent. The companion binds only to `127.0.0.1:8766`, accepts only the portfolio and local-development origins, exposes a fixed allowlist of source-backed app APIs, and forwards model calls only to a loopback OpenAI-compatible endpoint. Code, tests, progress, prompts, model names, and responses never pass through EC2. For LM Studio, pass `--upstream http://127.0.0.1:1234/v1`. The full Streamlit product remains available through the quick-start flow below.
 
 ## Highlights
 
