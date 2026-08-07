@@ -101,22 +101,24 @@
     </main>
 
     <section class="connection-panel" aria-labelledby="connection-title">
-      <div><p data-copy="connectionEyebrow">LOCAL COMPANION</p><h2 id="connection-title" data-copy="connectionTitle">Connect the hosted UI to the source on this computer.</h2><p data-copy="connectionBody">The companion imports LeetTutor’s real curriculum, code runner and problem client, and forwards model requests only to loopback Ollama or LM Studio. EC2 never receives code, prompts or responses.</p></div>
+      <div><p data-copy="connectionEyebrow">BROWSER APP · LOCAL BACKEND</p><h2 id="connection-title" data-copy="connectionTitle">Start the two local services, then do everything here.</h2><p data-copy="connectionBody">This website is the complete UI. Python provides source-backed APIs and Ollama or LM Studio provides the model.</p></div>
       <div class="connection-form">
-        <label><span data-copy="bridgeUrl">Fixed loopback address</span><input id="bridge-url" value="http://127.0.0.1:8766" readonly /></label>
-        <label><span data-copy="model">Local model</span><select id="model"><option value="">Start companion to detect models</option></select></label>
-        <button id="test-connection" type="button" data-copy="test">Connect local app</button>
-        <a class="local-open" href="http://127.0.0.1:8766/" target="_blank" rel="noopener noreferrer" data-copy="openLocal">Open locally ↗</a>
-        <p id="connection-status" role="status" data-copy="notConnected">Local companion is not connected.</p>
+        <label><span data-copy="bridgeUrl">Python backend</span><input id="bridge-url" value="http://127.0.0.1:8766" readonly /></label>
+        <label><span data-copy="model">Local model</span><select id="model"><option value="">Start backend to detect models</option></select></label>
+        <button id="test-connection" type="button" data-copy="test">Connect and enter workspace</button>
+        <a class="local-open" href="http://127.0.0.1:8766/" target="_blank" rel="noopener noreferrer" data-copy="openLocal">Open fallback UI ↗</a>
+        <p id="connection-status" role="status" data-copy="notConnected">Waiting for the Python backend and local model.</p>
       </div>
       <details open>
-        <summary data-copy="setup">Start the real local app</summary>
+        <summary data-copy="setup">One-time connection steps</summary>
         <ol>
-          <li data-copy="setup1">Clone or update the Leetcode repository, then start Ollama or LM Studio.</li>
+          <li data-copy="setup1">Start Ollama, then start the LeetTutor Python backend in the cloned repository.</li>
+          <li><code>ollama serve</code></li>
           <li><code>python3 scripts/browser_bridge.py</code></li>
-          <li data-copy="setup3">Return here and choose “Connect local app.”</li>
+          <li data-copy="setup2">Allow tonytan.me to access the local network when Chrome asks.</li>
+          <li data-copy="setup3">Return to this tab and choose “Connect and enter workspace.”</li>
         </ol>
-        <a href="https://github.com/widmonstertony/Leetcode" target="_blank" rel="noopener noreferrer" data-copy="source">Get source and companion ↗</a>
+        <a href="https://github.com/widmonstertony/Leetcode" target="_blank" rel="noopener noreferrer" data-copy="source">Get source and backend ↗</a>
       </details>
     </section>
   </body>

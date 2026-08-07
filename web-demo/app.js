@@ -10,12 +10,12 @@ const copy = {
     saveSource: "Save to cloned repository", review: "Ask JARVIS to review", mentorLabel: "LOCAL AI MENTOR",
     opening: "Start the local companion, choose a source mission, and I will coach against your real code and test output.",
     replyLabel: "Your reasoning", replyPlaceholder: "Explain your next step…", send: "Send to local JARVIS",
-    connectionEyebrow: "LOCAL COMPANION", connectionTitle: "Connect the hosted UI to the source on this computer.",
-    connectionBody: "The companion imports LeetTutor’s real curriculum, code runner and problem client, and forwards model requests only to loopback Ollama or LM Studio. EC2 never receives code, prompts or responses.",
-    bridgeUrl: "Fixed loopback address", model: "Local model", test: "Connect local app", notConnected: "Local companion is not connected.",
-    setup: "Start the real local app", setup1: "Clone or update the Leetcode repository, then start Ollama or LM Studio.", setup3: "The launcher opens this same source UI locally; hosted direct-connect remains optional.", openLocal: "Open locally ↗", source: "Get source and companion ↗",
+    connectionEyebrow: "BROWSER APP · LOCAL BACKEND", connectionTitle: "Start the two local services, then do everything here.",
+    connectionBody: "This website is the complete UI. Python runs the source-backed APIs and code runner; Ollama or LM Studio runs the model. The browser connects to both through the loopback-only backend, and EC2 never receives code, prompts, or responses.",
+    bridgeUrl: "Python backend", model: "Local model", test: "Connect and enter workspace", notConnected: "Waiting for the Python backend and local model.",
+    setup: "One-time connection steps", setup1: "Start Ollama, then start the LeetTutor Python backend in the cloned repository.", setup2: "Allow tonytan.me to access the local network when Chrome asks.", setup3: "Return to this tab and choose “Connect and enter workspace.”", openLocal: "Open fallback UI ↗", source: "Get source and backend ↗",
     connected: "Connected: {problems} algorithm missions, {systems} system-design missions, {models} local model(s).",
-    failed: "Local companion unavailable. Run python3 scripts/browser_bridge.py, then use the local window it opens or retry here.",
+    failed: "Backend not reachable. Start Ollama and python3 scripts/browser_bridge.py, allow Chrome local-network access, then retry.",
     loading: "Loading from this computer…", imported: "Imported {title} through the local source client.", importFailed: "Could not import this problem locally.",
     ready: "READY", running: "RUNNING", passed: "PASSED", failedRun: "FAILED", saved: "Saved as {path} on this computer.", saveFailed: "Could not save; an existing solution is never overwritten automatically.",
     thinking: "JARVIS is thinking on your computer…", coldStart: "The local model is still loading on this computer; the first answer can take longer.", requestFailed: "The local model did not answer. Check the companion terminal and selected model.",
@@ -31,12 +31,12 @@ const copy = {
     saveSource: "保存到本机克隆仓库", review: "让 JARVIS Review", mentorLabel: "本机 AI 导师",
     opening: "启动本机 companion 并选择源码任务后，我会结合你的真实代码和测试结果进行辅导。",
     replyLabel: "你的推理", replyPlaceholder: "解释下一步怎么做…", send: "发送给本机 JARVIS",
-    connectionEyebrow: "本机 COMPANION", connectionTitle: "把托管界面连接到这台电脑上的真实源码。",
-    connectionBody: "Companion 直接导入 LeetTutor 的真实题库、代码运行器和题目客户端，并且只把模型请求转发给回环地址上的 Ollama 或 LM Studio；EC2 收不到代码、Prompt 或回答。",
-    bridgeUrl: "固定回环地址", model: "本机模型", test: "连接本机应用", notConnected: "尚未连接本机 companion。",
-    setup: "启动真实本机应用", setup1: "克隆或更新 Leetcode 仓库，然后启动 Ollama 或 LM Studio。", setup3: "启动器会在本机打开同一套源码界面；托管页直连仍可选。", openLocal: "在本机打开 ↗", source: "获取源码与 companion ↗",
+    connectionEyebrow: "浏览器应用 · 本机后端", connectionTitle: "启动两个本机服务，然后所有操作都在这里完成。",
+    connectionBody: "这个网站就是完整 UI。Python 提供真实源码 API 和代码运行器，Ollama 或 LM Studio 提供模型；浏览器只通过回环后端连接它们，EC2 收不到代码、Prompt 或回答。",
+    bridgeUrl: "Python 后端", model: "本机模型", test: "连接并进入工作区", notConnected: "正在等待 Python 后端和本机模型。",
+    setup: "一次连接三步", setup1: "先启动 Ollama，再在克隆仓库中启动 LeetTutor Python 后端。", setup2: "Chrome 询问时，允许 tonytan.me 访问本地网络。", setup3: "回到此标签页，点击“连接并进入工作区”。", openLocal: "打开备用界面 ↗", source: "获取源码与后端 ↗",
     connected: "已连接：{problems} 个算法任务、{systems} 个系统设计任务、{models} 个本机模型。",
-    failed: "无法连接本机 companion。请在仓库运行 python3 scripts/browser_bridge.py，然后使用自动打开的本机窗口或在此重试。",
+    failed: "无法连接后端。请启动 Ollama 和 python3 scripts/browser_bridge.py，允许 Chrome 访问本地网络后重试。",
     loading: "正在从这台电脑加载…", imported: "已通过本机源码客户端导入 {title}。", importFailed: "无法在本机导入这道题。",
     ready: "就绪", running: "运行中", passed: "通过", failedRun: "未通过", saved: "已保存到这台电脑：{path}", saveFailed: "保存失败；现有题解绝不会被自动覆盖。",
     thinking: "JARVIS 正在你的电脑上思考…", coldStart: "本机模型仍在加载；第一次回答可能更慢。", requestFailed: "本机模型没有返回；请检查 companion 终端和所选模型。",
@@ -50,6 +50,7 @@ const state = {
   imported: false, lastRun: null,
 };
 const $ = (selector) => document.querySelector(selector);
+const hostedPortfolio = ["tonytan.me", "www.tonytan.me"].includes(window.location.hostname);
 
 function t(key, values = {}) {
   let value = copy[state.locale][key] || copy.en[key] || key;
@@ -391,4 +392,4 @@ $("#chat-form").addEventListener("submit", (event) => {
 });
 
 applyPreferences();
-testConnection();
+if (!hostedPortfolio) testConnection();

@@ -12,7 +12,7 @@
 ./launch_companion.command
 ```
 
-Windows 双击 `launch_companion.bat`；也可以运行 `python3 scripts/browser_bridge.py`。Companion 会直接打开 `http://127.0.0.1:8766/`，该页面和 `tonytan.me/leetcode/` 共用 `web-demo/` 源码，但同源访问不依赖浏览器的本地网络权限。Companion 只监听回环地址，静态资源采用固定白名单；应用 API 固定调用本仓库的受限功能，模型 API 只能转发到本机 OpenAI 兼容端点。题解、测试、进度、Prompt、模型名和回复都不经过 EC2。LM Studio 使用 `python3 scripts/browser_bridge.py --upstream http://127.0.0.1:1234/v1`。完整 Streamlit 产品仍按下面方式在本机运行。
+浏览器版本的主入口是 `https://tonytan.me/leetcode/`。用户先自行启动 Ollama（或 LM Studio）和 `python3 scripts/browser_bridge.py`，再回到网页点击连接；之后选题、运行代码、保存进度和 JARVIS 辅导都在浏览器 UI 中完成。后端只监听回环地址，静态资源和 API 都采用固定白名单，题解、测试、进度、Prompt、模型名和回复不经过 EC2。LM Studio 使用 `python3 scripts/browser_bridge.py --upstream http://127.0.0.1:1234/v1`。需要排查浏览器本地网络权限时，可传 `--open-browser` 打开同源备用界面。完整 Streamlit 产品仍按下面方式在本机运行。
 
 ## 最快启动
 

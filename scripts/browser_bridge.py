@@ -363,7 +363,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="LeetTutor loopback model bridge")
     parser.add_argument("--port", type=int, default=8766)
     parser.add_argument("--upstream", type=validate_upstream, default="http://127.0.0.1:11434")
-    parser.add_argument("--no-browser", action="store_true", help="Do not open the local source UI")
+    parser.add_argument("--open-browser", action="store_true", help="Also open the loopback fallback UI")
     parser.add_argument(
         "--allow-origin",
         action="append",
@@ -384,7 +384,7 @@ def main() -> int:
     server.progress_path = Path.home() / ".leettutor" / "progress.json"
     print(f"LeetTutor bridge: http://127.0.0.1:{args.port} -> {args.upstream}")
     print("Prompts and responses stay between this browser and your computer.")
-    if not args.no_browser:
+    if args.open_browser:
         import webbrowser
 
         threading.Timer(0.6, lambda: webbrowser.open(f"http://127.0.0.1:{args.port}/")).start()

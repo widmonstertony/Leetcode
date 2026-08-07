@@ -28,6 +28,7 @@ class BrowserBridgeValidationTests(unittest.TestCase):
         app_source = (ROOT / "web-demo" / "app.js").read_text(encoding="utf-8")
         self.assertIn('targetAddressSpace: "loopback"', app_source)
         self.assertNotIn('targetAddressSpace: "local"', app_source)
+        self.assertIn("if (!hostedPortfolio) testConnection();", app_source)
 
     def test_accepts_loopback_model_servers(self) -> None:
         self.assertEqual(validate_upstream("http://127.0.0.1:11434/"), "http://127.0.0.1:11434")
