@@ -17,6 +17,7 @@ import json
 from pathlib import Path
 import re
 import sys
+import threading
 from typing import Final
 from urllib import error as urllib_error
 from urllib import parse as urllib_parse
@@ -49,6 +50,12 @@ APP_POST_PATHS: Final = {
     "/api/solutions/save",
 }
 LOCAL_ORIGIN = re.compile(r"^https?://(?:localhost|127\.0\.0\.1)(?::\d+)?$")
+STATIC_PATHS: Final = {
+    "/": ("index.html", "text/html; charset=utf-8"),
+    "/index.html": ("index.html", "text/html; charset=utf-8"),
+    "/app.js": ("app.js", "text/javascript; charset=utf-8"),
+    "/styles.css": ("styles.css", "text/css; charset=utf-8"),
+}
 
 
 def validate_upstream(value: str) -> str:
@@ -115,6 +122,13 @@ class BridgeHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(length))
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header(
+            "Content-Security-Policy",
+            "default-src 'self'; style-src 'self'; script-src 'self'; "
+            "connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'; "
+            "base-uri 'none'; form-action 'self'",
+        )
         origin = self.headers.get("Origin", "")
         if origin and self._origin_allowed():
             self.send_header("Access-Control-Allow-Origin", origin)
@@ -148,6 +162,16 @@ class BridgeHandler(BaseHTTPRequestHandler):
             self._json({"error": "Origin is not allowed."}, HTTPStatus.FORBIDDEN)
             return
         path = urllib_parse.urlparse(self.path).path
+        if path in STATIC_PATHS:
+            filename, content_type = STATIC_PATHS[path]
+            try:
+                body = (self.server.project_root / "web-demo" / filename).read_bytes()
+            except OSError:
+                self._json({"error": "Local UI asset unavailable."}, HTTPStatus.INTERNAL_SERVER_ERROR)
+                return
+            self._headers(len(body), content_type, HTTPStatus.OK)
+            self.wfile.write(body)
+            return
         if path == "/healthz":
             self._json({
                 "ok": True,
@@ -339,6 +363,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="LeetTutor loopback model bridge")
     parser.add_argument("--port", type=int, default=8766)
     parser.add_argument("--upstream", type=validate_upstream, default="http://127.0.0.1:11434")
+    parser.add_argument("--no-browser", action="store_true", help="Do not open the local source UI")
     parser.add_argument(
         "--allow-origin",
         action="append",
@@ -359,6 +384,10 @@ def main() -> int:
     server.progress_path = Path.home() / ".leettutor" / "progress.json"
     print(f"LeetTutor bridge: http://127.0.0.1:{args.port} -> {args.upstream}")
     print("Prompts and responses stay between this browser and your computer.")
+    if not args.no_browser:
+        import webbrowser
+
+        threading.Timer(0.6, lambda: webbrowser.open(f"http://127.0.0.1:{args.port}/")).start()
     try:
         server.serve_forever(poll_interval=0.25)
     except KeyboardInterrupt:

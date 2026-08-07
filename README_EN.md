@@ -12,7 +12,7 @@ LeetTutor is a local-first AI learning workspace for LeetCode and system design.
 ./launch_companion.command
 ```
 
-On Windows, double-click `launch_companion.bat`; `python3 scripts/browser_bridge.py` is the direct equivalent. The companion binds only to `127.0.0.1:8766`, accepts only the portfolio and local-development origins, exposes a fixed allowlist of source-backed app APIs, and forwards model calls only to a loopback OpenAI-compatible endpoint. Code, tests, progress, prompts, model names, and responses never pass through EC2. For LM Studio, pass `--upstream http://127.0.0.1:1234/v1`. The full Streamlit product remains available through the quick-start flow below.
+On Windows, double-click `launch_companion.bat`; `python3 scripts/browser_bridge.py` is the direct equivalent. The companion opens `http://127.0.0.1:8766/`, which shares the hosted page's `web-demo/` source but uses same-origin APIs without depending on browser local-network permission. It binds only to loopback, serves a fixed static allowlist, exposes a fixed allowlist of source-backed app APIs, and forwards model calls only to a loopback OpenAI-compatible endpoint. Code, tests, progress, prompts, model names, and responses never pass through EC2. For LM Studio, pass `--upstream http://127.0.0.1:1234/v1`. The full Streamlit product remains available through the quick-start flow below.
 
 ## Highlights
 

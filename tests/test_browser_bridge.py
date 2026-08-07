@@ -86,6 +86,16 @@ class BrowserBridgeAppTests(unittest.TestCase):
                         "https://tonytan.me",
                     )
 
+                with urllib_request.urlopen(base_url + "/", timeout=3) as response:
+                    self.assertEqual(response.status, 200)
+                    self.assertIn(b"LeetTutor", response.read())
+                    self.assertEqual(
+                        response.headers["Content-Security-Policy"],
+                        "default-src 'self'; style-src 'self'; script-src 'self'; "
+                        "connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'; "
+                        "base-uri 'none'; form-action 'self'",
+                    )
+
                 body = json.dumps(
                     {
                         "source": "class Solution:\n    def add(self, a, b):\n        return a + b\n",
