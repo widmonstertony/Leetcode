@@ -5204,7 +5204,22 @@ def render_floating_mentor(
             requested = pending
             if requested_question:
                 if not model:
+                    display = (
+                        _ui("向 JARVIS 提问：", "Ask JARVIS: ")
+                        + requested_question
+                    )
+                    history.append(
+                        {
+                            "role": "user",
+                            "content": requested_question,
+                            "display": display,
+                        }
+                    )
+                    with transcript_box:
+                        with st.chat_message("user"):
+                            st.markdown(display)
                     st.warning("先在左侧选择或填写本地模型，然后再和我对话。")
+                    requested = None
                 else:
                     if mode == "algorithm":
                         content = _workspace_request(
