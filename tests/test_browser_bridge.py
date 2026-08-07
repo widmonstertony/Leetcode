@@ -24,6 +24,11 @@ from browser_bridge import (  # noqa: E402
 
 
 class BrowserBridgeValidationTests(unittest.TestCase):
+    def test_hosted_ui_declares_the_companion_as_loopback(self) -> None:
+        app_source = (ROOT / "web-demo" / "app.js").read_text(encoding="utf-8")
+        self.assertIn('targetAddressSpace: "loopback"', app_source)
+        self.assertNotIn('targetAddressSpace: "local"', app_source)
+
     def test_accepts_loopback_model_servers(self) -> None:
         self.assertEqual(validate_upstream("http://127.0.0.1:11434/"), "http://127.0.0.1:11434")
         self.assertEqual(validate_upstream("http://localhost:1234/v1"), "http://localhost:1234/v1")
