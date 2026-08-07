@@ -1,7 +1,9 @@
 "use strict";
 
 const LOCAL_APP_URL = "http://127.0.0.1:8501/?embed=true";
+const LOCAL_HEALTH_URL = "http://127.0.0.1:8501/_stcore/health";
 const $ = (selector) => document.querySelector(selector);
+let localHealthConfirmed = false;
 
 const copy = {
   en: {
@@ -13,7 +15,8 @@ const copy = {
     step2Title: "Start the original app", step2Body: "Double-click launch_companion.command, or run:",
     step3Title: "Connect here", step3Body: "Allow local-network access when Chrome asks. The original app then fills this tab.",
     connect: "Open original LeetTutor", fallback: "Open the original app directly ↗",
-    waiting: "Waiting for the original app on this computer.", opening: "Opening the original LeetTutor…",
+    waiting: "Waiting for the original app on this computer.", opening: "Checking the original LeetTutor…",
+    failed: "Chrome could not reach the original app. Start it first; if it is already running, allow local-network access below and retry.",
     troubleshoot: "Chrome already blocked it?",
     permissionHelp: "In the address bar, open Site controls → Site settings → Local network access → Allow, refresh, and connect again.",
   },
@@ -26,7 +29,8 @@ const copy = {
     step2Title: "启动原版应用", step2Body: "双击 launch_companion.command，或运行：",
     step3Title: "在这里连接", step3Body: "Chrome 询问时允许本地网络访问，随后原版应用会铺满这个标签页。",
     connect: "打开原版 LeetTutor", fallback: "直接打开原版应用 ↗",
-    waiting: "正在等待这台电脑上的原版应用。", opening: "正在打开原版 LeetTutor…",
+    waiting: "正在等待这台电脑上的原版应用。", opening: "正在检测原版 LeetTutor…",
+    failed: "Chrome 无法访问原版应用。请先启动它；如果已经运行，请按下方说明允许本地网络访问后重试。",
     troubleshoot: "Chrome 之前已经拒绝？",
     permissionHelp: "点击地址栏左侧的网站控制 → 网站设置 → 本地网络访问 → 允许，然后刷新并重新连接。",
   },
@@ -56,18 +60,31 @@ function applyPreferences() {
   });
 }
 
-function connectOriginal() {
+async function connectOriginal() {
   const button = $("#connect-original");
   button.disabled = true;
   $("#connection-status").textContent = copy[locale()].opening;
   document.body.classList.add("is-connecting");
-  const frame = $("#original-app");
-  frame.src = LOCAL_APP_URL;
+  try {
+    await fetch(LOCAL_HEALTH_URL, {
+      cache: "no-store",
+      mode: "no-cors",
+      targetAddressSpace: "loopback",
+    });
+    localHealthConfirmed = true;
+    $("#original-app").src = LOCAL_APP_URL;
+  } catch (_error) {
+    localHealthConfirmed = false;
+    button.disabled = false;
+    document.body.classList.remove("is-connecting");
+    $("#connection-status").textContent = copy[locale()].failed;
+    $(".launch-actions details").open = true;
+  }
 }
 
 function revealOriginal() {
   const frame = $("#original-app");
-  if (!frame.src.startsWith("http://127.0.0.1:8501/")) return;
+  if (!localHealthConfirmed || !frame.src.startsWith("http://127.0.0.1:8501/")) return;
   $("#connection-view").hidden = true;
   $("#app-view").hidden = false;
   document.body.classList.remove("is-connecting");
