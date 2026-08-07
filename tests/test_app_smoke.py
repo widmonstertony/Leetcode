@@ -68,6 +68,23 @@ def test_lan_launcher_is_explicit_and_password_protected() -> None:
     assert "请勿把端口映射到公网" in launcher
 
 
+def test_hosted_launcher_runs_the_original_app_without_opening_another_tab() -> None:
+    project_root = Path(__file__).resolve().parents[1]
+    launcher = (project_root / "scripts" / "launch.py").read_text(encoding="utf-8")
+    companion_macos = (project_root / "launch_companion.command").read_text(
+        encoding="utf-8"
+    )
+    companion_windows = (project_root / "launch_companion.bat").read_text(
+        encoding="utf-8"
+    )
+
+    assert '"--hosted"' in launcher
+    assert 'server_address = "127.0.0.1" if args.hosted else "localhost"' in launcher
+    assert "--server.headless={'true' if args.hosted else 'false'}" in launcher
+    assert "scripts/launch.py --hosted" in companion_macos
+    assert "scripts\\launch.py --hosted" in companion_windows
+
+
 def test_lan_access_gate_runs_before_the_workspace(monkeypatch) -> None:
     app_path = Path(__file__).resolve().parents[1] / "app.py"
     monkeypatch.setenv("LEETTUTOR_ACCESS_CODE", "12345678")

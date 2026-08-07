@@ -2,8 +2,8 @@
 setlocal
 cd /d "%~dp0"
 if exist ".venv\Scripts\python.exe" (
-  ".venv\Scripts\python.exe" scripts\browser_bridge.py
+  ".venv\Scripts\python.exe" scripts\launch.py --hosted
 ) else (
-  py -3 scripts\browser_bridge.py
+  py -3 scripts\launch.py --hosted
 )
 endlocal

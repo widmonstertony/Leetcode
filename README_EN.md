@@ -4,15 +4,17 @@
 
 LeetTutor is a local-first AI learning workspace for LeetCode and system design. Its JARVIS mentor chooses the next exercise from your weak areas, reads the live problem/code/test context, and teaches through short Socratic prompts instead of dumping an answer. You can run Python solutions in the browser, use either local or cloud models, and continue on a phone through a trusted home-network host.
 
-## Hosted real app + source/model on your computer
+## Hosted entry + original app/model on your computer
 
-[tonytan.me/leetcode/](https://tonytan.me/leetcode/) downloads only versioned UI assets from the server; it does not use fake missions or a server-side model. Once the local companion is running, the page calls this repository's real curriculum, system-design catalog, constrained code runner, LeetCode importer, SolutionStore, and progress store. It can import a problem, execute tests locally, save into the clone, and give JARVIS the real code and run result.
+[tonytan.me/leetcode/](https://tonytan.me/leetcode/) no longer maintains a separate simplified workspace. After the local app starts, the site loads the repository's original `app.py` in the current tab. The floating JARVIS, split workspace, Ace editor, progress, model settings, and mobile navigation therefore share the same Streamlit source as the directly launched product.
 
 ```bash
 ./launch_companion.command
 ```
 
-The browser version lives at `https://tonytan.me/leetcode/`. The user starts Ollama (or LM Studio) and `python3 scripts/browser_bridge.py`, returns to the website, and connects; problem selection, code execution, progress, and JARVIS then stay in the browser UI. The backend binds only to loopback and serves fixed static and API allowlists. Code, tests, progress, prompts, model names, and responses never pass through EC2. For LM Studio, pass `--upstream http://127.0.0.1:1234/v1`. Use `--open-browser` only when the same-origin fallback is needed to troubleshoot browser local-network permission. The full Streamlit product remains available through the quick-start flow below.
+The browser entry remains `https://tonytan.me/leetcode/`. Start Ollama (or LM Studio), run `python3 scripts/launch.py --hosted`, return to the site, and choose “Open original LeetTutor.” Hosted mode binds the original Streamlit app only to `127.0.0.1:8501` and does not open a second local tab. Code, tests, progress, prompts, model names, and responses never pass through EC2. If Chrome local-network permission is unavailable, open `http://127.0.0.1:8501/` as the direct fallback.
+
+`scripts/browser_bridge.py` remains available for compatibility and API diagnostics, but it no longer provides the primary product UI.
 
 ## Highlights
 
