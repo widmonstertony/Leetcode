@@ -109,7 +109,7 @@ async function companionFetch(path, options = {}, timeoutMs = 15_000) {
     return await fetch(bridgeUrl(path), {
       ...options,
       signal: controller.signal,
-      targetAddressSpace: "local",
+      targetAddressSpace: "loopback",
     });
   } finally {
     window.clearTimeout(timeout);
