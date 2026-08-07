@@ -15,7 +15,7 @@ const copy = {
     bridgeUrl: "Fixed loopback address", model: "Local model", test: "Connect local app", notConnected: "Local companion is not connected.",
     setup: "Start the real local app", setup1: "Clone or update the Leetcode repository, then start Ollama or LM Studio.", setup3: "Return here and choose “Connect local app.”", source: "Get source and companion ↗",
     connected: "Connected: {problems} algorithm missions, {systems} system-design missions, {models} local model(s).",
-    failed: "Local companion unavailable. Run python3 scripts/browser_bridge.py in this repository, then retry.",
+    failed: "Local companion unavailable. Run python3 scripts/browser_bridge.py, allow tonytan.me local-network access in the browser, then retry.",
     loading: "Loading from this computer…", imported: "Imported {title} through the local source client.", importFailed: "Could not import this problem locally.",
     ready: "READY", running: "RUNNING", passed: "PASSED", failedRun: "FAILED", saved: "Saved as {path} on this computer.", saveFailed: "Could not save; an existing solution is never overwritten automatically.",
     thinking: "JARVIS is thinking on your computer…", coldStart: "The local model is still loading on this computer; the first answer can take longer.", requestFailed: "The local model did not answer. Check the companion terminal and selected model.",
@@ -36,7 +36,7 @@ const copy = {
     bridgeUrl: "固定回环地址", model: "本机模型", test: "连接本机应用", notConnected: "尚未连接本机 companion。",
     setup: "启动真实本机应用", setup1: "克隆或更新 Leetcode 仓库，然后启动 Ollama 或 LM Studio。", setup3: "回到这里点击“连接本机应用”。", source: "获取源码与 companion ↗",
     connected: "已连接：{problems} 个算法任务、{systems} 个系统设计任务、{models} 个本机模型。",
-    failed: "无法连接本机 companion。请在仓库运行 python3 scripts/browser_bridge.py 后重试。",
+    failed: "无法连接本机 companion。请在仓库运行 python3 scripts/browser_bridge.py，并允许浏览器授予 tonytan.me 本地网络访问权限后重试。",
     loading: "正在从这台电脑加载…", imported: "已通过本机源码客户端导入 {title}。", importFailed: "无法在本机导入这道题。",
     ready: "就绪", running: "运行中", passed: "通过", failedRun: "未通过", saved: "已保存到这台电脑：{path}", saveFailed: "保存失败；现有题解绝不会被自动覆盖。",
     thinking: "JARVIS 正在你的电脑上思考…", coldStart: "本机模型仍在加载；第一次回答可能更慢。", requestFailed: "本机模型没有返回；请检查 companion 终端和所选模型。",
@@ -92,13 +92,28 @@ function bridgeUrl(path) {
 }
 
 async function localApi(path, options = {}) {
-  const headers = { Accept: "application/json", ...(options.headers || {}) };
-  if (options.body) headers["Content-Type"] = "application/json";
-  const response = await fetch(bridgeUrl(path), { ...options, headers, cache: "no-store" });
+  const { timeoutMs = 15_000, ...requestOptions } = options;
+  const headers = { Accept: "application/json", ...(requestOptions.headers || {}) };
+  if (requestOptions.body) headers["Content-Type"] = "application/json";
+  const response = await companionFetch(path, { ...requestOptions, headers, cache: "no-store" }, timeoutMs);
   let payload;
   try { payload = await response.json(); } catch { payload = { ok: false, error: `HTTP ${response.status}` }; }
   if (!response.ok || payload.ok === false) throw new Error(payload.error || `HTTP ${response.status}`);
   return payload;
+}
+
+async function companionFetch(path, options = {}, timeoutMs = 15_000) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(bridgeUrl(path), {
+      ...options,
+      signal: controller.signal,
+      targetAddressSpace: "local",
+    });
+  } finally {
+    window.clearTimeout(timeout);
+  }
 }
 
 function setConnected(connected) {
@@ -243,6 +258,7 @@ async function importProblem() {
     const payload = await localApi("/api/problems/import", {
       method: "POST",
       body: JSON.stringify({ reference: $("#problem-reference").value, locale: state.locale }),
+      timeoutMs: 20_000,
     });
     state.current = payload.problem;
     state.imported = true;
@@ -332,7 +348,7 @@ async function askJarvis(message) {
   }, 12_000);
   const mode = $("#practice-mode").value;
   try {
-    const response = await fetch(bridgeUrl("/v1/chat/completions"), {
+    const response = await companionFetch("/v1/chat/completions", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: $("#model").value, stream: false, temperature: 0.2, top_p: 0.9, max_tokens: 512,
@@ -341,7 +357,7 @@ async function askJarvis(message) {
           { role: "user", content: `Mission: ${$("#problem-title").textContent}\nRequirement: ${$("#problem-statement").textContent}\nObjective: ${$("#objective").textContent}\nCurrent work:\n${$("#code").value}\nLast local run: ${JSON.stringify(state.lastRun)}\n\nStudent: ${message.trim()}` },
         ],
       }),
-    });
+    }, 180_000);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const payload = await response.json();
     window.clearTimeout(coldStartTimer);
