@@ -4,15 +4,17 @@
 
 **LeetTutor · Made by Tony** 是互动式 LeetCode 与系统设计学习助手。内置导师 **JARVIS** 会根据薄弱项和练习进度安排下一题；界面运行在浏览器中，可以直接导入题目、写 Python、跑自定义测试，并把当前代码现场交给 AI。模型既可完全留在本机，也可选择 OpenAI API 或 Gemini API；任意能运行本项目的电脑都可以开启局域网主机模式，让同一 Wi-Fi 内的手机或平板继续刷题。
 
-## 在线真实应用 + 本机源码 / 模型
+## 在线入口 + 原版应用 / 本机模型
 
-[tonytan.me/leetcode/](https://tonytan.me/leetcode/) 只从服务器加载仓库内的 UI 资源，不运行假题目或服务端模型。启动本机 companion 后，网页会直接调用这个仓库里的 `curriculum`、`system_design_curriculum`、`code_runner`、`leetcode_client` 与 `SolutionStore`：可以切换真实课程、导入任意 LeetCode 题目、在本机受限进程跑测试、保存到克隆仓库、记录进度，并让 JARVIS 结合真实代码和运行结果辅导。
+[tonytan.me/leetcode/](https://tonytan.me/leetcode/) 不再维护另一套简化 UI。启动本机应用后，网站会在当前标签页加载仓库中原本的 `app.py`：漂浮 JARVIS、左右工作区、Ace 编辑器、学习进度、模型设置和手机导航全部与直接运行原项目共用同一份 Streamlit 源码，不会再出现线上版和原版 UX 分叉。
 
 ```bash
 ./launch_companion.command
 ```
 
-浏览器版本的主入口是 `https://tonytan.me/leetcode/`。用户先自行启动 Ollama（或 LM Studio）和 `python3 scripts/browser_bridge.py`，再回到网页点击连接；之后选题、运行代码、保存进度和 JARVIS 辅导都在浏览器 UI 中完成。后端只监听回环地址，静态资源和 API 都采用固定白名单，题解、测试、进度、Prompt、模型名和回复不经过 EC2。LM Studio 使用 `python3 scripts/browser_bridge.py --upstream http://127.0.0.1:1234/v1`。需要排查浏览器本地网络权限时，可传 `--open-browser` 打开同源备用界面。完整 Streamlit 产品仍按下面方式在本机运行。
+浏览器入口仍是 `https://tonytan.me/leetcode/`。用户先自行启动 Ollama（或 LM Studio），再运行 `python3 scripts/launch.py --hosted`，回到网站点击“打开原版 LeetTutor”。Hosted 模式只把原版 Streamlit 绑定到 `127.0.0.1:8501`，不会另开本机标签页；网站只负责在当前页面显示它。题解、测试、进度、Prompt、模型名和回复都留在本机，不经过 EC2。无法使用浏览器本地网络权限时，可直接打开 `http://127.0.0.1:8501/` 作为备用入口。
+
+`scripts/browser_bridge.py` 仍保留为兼容与 API 调试工具，但不再承载主产品 UI。
 
 ## 最快启动
 

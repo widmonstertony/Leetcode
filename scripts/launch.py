@@ -105,6 +105,11 @@ def parse_args() -> argparse.Namespace:
         help="Allow password-protected access from other devices on this LAN.",
     )
     parser.add_argument(
+        "--hosted",
+        action="store_true",
+        help="Run the original UI on loopback for embedding at tonytan.me/leetcode/.",
+    )
+    parser.add_argument(
         "--port", type=int, default=8501, help="Streamlit port (default: 8501)."
     )
     return parser.parse_args()
@@ -112,6 +117,12 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    if args.lan and args.hosted:
+        print("[LeetTutor] --lan 与 --hosted 不能同时使用。", file=sys.stderr)
+        return 2
+    if args.hosted and args.port != 8501:
+        print("[LeetTutor] Hosted 模式固定使用回环端口 8501。", file=sys.stderr)
+        return 2
     if not 1024 <= args.port <= 65535:
         print("[LeetTutor] 端口必须在 1024 到 65535 之间。", file=sys.stderr)
         return 2
@@ -137,7 +148,7 @@ def main() -> int:
             print(f"[LeetTutor] Qwen3.5 9B GPU 服务{owner}：{AMD_METAL_ENDPOINT}")
 
     environment = os.environ.copy()
-    server_address = "localhost"
+    server_address = "127.0.0.1" if args.hosted else "localhost"
     if args.lan:
         server_address = "0.0.0.0"
         lan_host = find_lan_ipv4() or f"{socket.gethostname()}.local"
@@ -159,7 +170,11 @@ def main() -> int:
         print("[LeetTutor] 首次验证后，可在该浏览器记住此主机 30 天。")
         print("[LeetTutor] 手机与主机必须在同一 Wi-Fi；请勿把端口映射到公网。")
 
-    print("[LeetTutor] 正在启动；浏览器会自动打开。按 Ctrl+C 停止。")
+    if args.hosted:
+        print("[LeetTutor] 正在启动原版应用；请回到 https://tonytan.me/leetcode/ 点击连接。")
+        print("[LeetTutor] 本机备用地址：http://127.0.0.1:8501/；按 Ctrl+C 停止。")
+    else:
+        print("[LeetTutor] 正在启动；浏览器会自动打开。按 Ctrl+C 停止。")
     command = [
         str(python),
         "-m",
@@ -168,7 +183,7 @@ def main() -> int:
         str(PROJECT_ROOT / "app.py"),
         f"--server.address={server_address}",
         f"--server.port={args.port}",
-        "--server.headless=false",
+        f"--server.headless={'true' if args.hosted else 'false'}",
         "--client.toolbarMode=viewer",
     ]
     if metal_runtime is not None:

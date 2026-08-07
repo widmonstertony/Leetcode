@@ -4,122 +4,56 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
-    <meta name="description" content="LeetTutor real local application: curated interview practice, constrained code execution, system design, and a local JARVIS model." />
-    <title>LeetTutor — Real Local JARVIS App</title>
+    <meta name="description" content="Run the original LeetTutor and floating JARVIS experience in this browser tab." />
+    <title>LeetTutor — Original JARVIS App</title>
     <link rel="stylesheet" href="./styles.css" />
     <script type="module" src="./app.js"></script>
   </head>
   <body>
-    <a class="skip-link" href="#workspace">Skip to workspace</a>
-    <header class="topbar">
-      <a class="brand" href="https://tonytan.me/projects/leetcode" aria-label="Back to LeetTutor case study">
-        <span class="brand-mark">LT</span>
-        <span><strong>LeetTutor</strong><small>JARVIS Learning System</small></span>
-      </a>
-      <div class="privacy-pill"><span></span><span data-copy="privacy">REAL LOCAL APP · NO SERVER RELAY</span></div>
-      <div class="controls">
-        <label><span data-copy="language">Language</span><select id="language"><option value="system">System</option><option value="en">English</option><option value="zh">中文</option></select></label>
-        <label><span data-copy="theme">Theme</span><select id="theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
-      </div>
-    </header>
+    <main id="connection-view" class="connection-view">
+      <header class="topbar">
+        <a class="brand" href="https://tonytan.me/projects/leetcode" aria-label="Back to LeetTutor case study">
+          <span class="brand-mark">LT</span>
+          <span><strong>LeetTutor</strong><small>JARVIS Learning System</small></span>
+        </a>
+        <div class="controls">
+          <label><span data-copy="language">Language</span><select id="language"><option value="system">System</option><option value="en">English</option><option value="zh">中文</option></select></label>
+          <label><span data-copy="theme">Theme</span><select id="theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+        </div>
+      </header>
 
-    <main id="workspace" class="workspace">
-      <section class="problem-pane">
-        <header class="pane-title problem-heading">
-          <div>
-            <p data-copy="practiceLabel">SOURCE CURRICULUM</p>
-            <h1 id="problem-title">LeetTutor</h1>
-          </div>
-          <span id="difficulty" class="difficulty">LOCAL</span>
-        </header>
+      <section class="launch-card" aria-labelledby="connection-title">
+        <div class="launch-copy">
+          <p class="eyebrow" data-copy="eyebrow">ORIGINAL APP · LOCAL EXECUTION</p>
+          <h1 id="connection-title" data-copy="title">The original LeetTutor, in this tab.</h1>
+          <p class="intro" data-copy="intro">No replacement dashboard. The hosted page opens the repository's real Streamlit product, including the floating JARVIS, original workspace, progress, editor, and model settings.</p>
+          <div class="privacy-note"><span aria-hidden="true"></span><span data-copy="privacy">The app and model run only on this computer. tonytan.me does not receive code, prompts, progress, or answers.</span></div>
+        </div>
 
-        <div class="problem-copy">
-          <div class="workspace-selectors">
-            <label><span data-copy="practiceMode">Practice mode</span><select id="practice-mode"><option value="algorithm">Algorithms</option><option value="system">System design</option></select></label>
-            <label><span data-copy="mission">Mission</span><select id="problem-select"></select></label>
-          </div>
-
-          <p id="problem-statement" class="statement"></p>
-          <a id="problem-link" class="problem-link" href="#" target="_blank" rel="noopener noreferrer" data-copy="openOriginal">Open original problem ↗</a>
-
-          <h2 data-copy="objective">This round</h2>
-          <p id="objective"></p>
-          <p id="progress-status" class="progress-status" role="status"></p>
-
-          <details class="import-card">
-            <summary data-copy="importProblem">Import any LeetCode problem from this computer</summary>
-            <label><span data-copy="problemUrl">LeetCode URL or slug</span><input id="problem-reference" type="text" placeholder="https://leetcode.com/problems/two-sum/" /></label>
-            <button id="import-problem" class="secondary" type="button" data-copy="import">Import statement & starter</button>
-            <p id="import-status" role="status"></p>
+        <div class="launch-actions">
+          <ol class="steps">
+            <li><span>1</span><div><strong data-copy="step1Title">Start your model</strong><p data-copy="step1Body">Open Ollama, LM Studio, or the configured AMD Metal runtime.</p><code>ollama serve</code></div></li>
+            <li><span>2</span><div><strong data-copy="step2Title">Start the original app</strong><p data-copy="step2Body">Double-click launch_companion.command, or run:</p><code>python3 scripts/launch.py --hosted</code></div></li>
+            <li><span>3</span><div><strong data-copy="step3Title">Connect here</strong><p data-copy="step3Body">Allow local-network access when Chrome asks. The original app then fills this tab.</p></div></li>
+          </ol>
+          <button id="connect-original" type="button" data-copy="connect">Open original LeetTutor</button>
+          <a class="fallback" href="http://127.0.0.1:8501/" target="_blank" rel="noopener noreferrer" data-copy="fallback">Open the original app directly ↗</a>
+          <p id="connection-status" class="status" role="status" data-copy="waiting">Waiting for the original app on this computer.</p>
+          <details>
+            <summary data-copy="troubleshoot">Chrome already blocked it?</summary>
+            <p data-copy="permissionHelp">In the address bar, open Site controls → Site settings → Local network access → Allow, refresh, and connect again.</p>
           </details>
-
-          <div id="runner-card" class="trace-card runner-card">
-            <header><strong data-copy="realRunner">Real constrained Python runner</strong><span id="run-status">READY</span></header>
-            <label><span data-copy="methodName">Solution method</span><input id="method-name" value="search" spellcheck="false" /></label>
-            <label><span data-copy="testCases">JSON test cases</span><textarea id="test-cases" rows="7" spellcheck="false">[
-  {"args":[[-1,0,3,5,9,12],9],"expected":4},
-  {"args":[[-1,0,3,5,9,12],2],"expected":-1}
-]</textarea></label>
-            <button id="run-code" type="button" data-copy="runCode">Run on this computer</button>
-            <pre id="run-result" class="run-result" aria-live="polite"></pre>
-          </div>
         </div>
       </section>
-
-      <section class="editor-pane">
-        <header class="pane-title compact"><div><p data-copy="editorLabel">LOCAL SOURCE WORKSPACE</p><h2 id="editor-filename">704.binary-search.py</h2></div><span class="saved" data-copy="localDraft">DRAFT STAYS LOCAL</span></header>
-        <label class="sr-only" for="code" data-copy="editorAria">Python solution or system design notes</label>
-        <textarea id="code" spellcheck="false">class Solution:
-    def search(self, nums, target):
-        left, right = 0, len(nums) - 1
-        while left &lt;= right:
-            mid = left + (right - left) // 2
-            if nums[mid] == target:
-                return mid
-            # Preserve the binary-search invariant here.
-        return -1</textarea>
-        <footer class="editor-footer">
-          <span id="editor-language">Python 3 · local process</span>
-          <div class="editor-actions">
-            <button id="save-source" class="secondary" type="button" data-copy="saveSource">Save to cloned repository</button>
-            <button id="review-code" type="button" data-copy="review">Ask JARVIS to review</button>
-          </div>
-        </footer>
-      </section>
-
-      <aside class="mentor-pane">
-        <header class="mentor-header"><span class="jarvis-orb">J</span><div><p data-copy="mentorLabel">LOCAL AI MENTOR</p><h2>JARVIS</h2></div><span id="connection-dot" class="connection-dot"></span></header>
-        <div id="messages" class="messages" aria-live="polite">
-          <article class="message assistant"><span>J</span><p data-copy="opening">Start the local companion, choose a source mission, and I will coach against your real code and test output.</p></article>
-        </div>
-        <form id="chat-form" class="chat-form">
-          <label for="message" data-copy="replyLabel">Your reasoning</label>
-          <textarea id="message" rows="3" data-placeholder="replyPlaceholder" placeholder="Explain your next step…"></textarea>
-          <button type="submit" data-copy="send">Send to local JARVIS</button>
-        </form>
-      </aside>
     </main>
 
-    <section class="connection-panel" aria-labelledby="connection-title">
-      <div><p data-copy="connectionEyebrow">BROWSER APP · LOCAL BACKEND</p><h2 id="connection-title" data-copy="connectionTitle">Start the two local services, then do everything here.</h2><p data-copy="connectionBody">This website is the complete UI. Python provides source-backed APIs and Ollama or LM Studio provides the model.</p></div>
-      <div class="connection-form">
-        <label><span data-copy="bridgeUrl">Python backend</span><input id="bridge-url" value="http://127.0.0.1:8766" readonly /></label>
-        <label><span data-copy="model">Local model</span><select id="model"><option value="">Start backend to detect models</option></select></label>
-        <button id="test-connection" type="button" data-copy="test">Connect and enter workspace</button>
-        <a class="local-open" href="http://127.0.0.1:8766/" target="_blank" rel="noopener noreferrer" data-copy="openLocal">Open fallback UI ↗</a>
-        <p id="connection-status" role="status" data-copy="notConnected">Waiting for the Python backend and local model.</p>
-      </div>
-      <details open>
-        <summary data-copy="setup">One-time connection steps</summary>
-        <ol>
-          <li data-copy="setup1">Start Ollama, then start the LeetTutor Python backend in the cloned repository.</li>
-          <li><code>ollama serve</code></li>
-          <li><code>python3 scripts/browser_bridge.py</code></li>
-          <li data-copy="setup2">Allow tonytan.me to access the local network when Chrome asks.</li>
-          <li data-copy="setup3">Return to this tab and choose “Connect and enter workspace.”</li>
-        </ol>
-        <a href="https://github.com/widmonstertony/Leetcode" target="_blank" rel="noopener noreferrer" data-copy="source">Get source and backend ↗</a>
-      </details>
+    <section id="app-view" class="app-view" hidden aria-label="Original LeetTutor application">
+      <iframe
+        id="original-app"
+        title="Original LeetTutor application"
+        allow="local-network; loopback-network; local-network-access"
+        referrerpolicy="no-referrer"
+      ></iframe>
     </section>
   </body>
 </html>
