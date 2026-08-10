@@ -21,19 +21,31 @@ from browser_bridge import (  # noqa: E402
     ollama_chat_payload,
     validate_upstream,
 )
+from export_web_catalog import build_catalog  # noqa: E402
 
 
 class BrowserBridgeValidationTests(unittest.TestCase):
-    def test_hosted_ui_embeds_the_original_loopback_app(self) -> None:
+    def test_hosted_ui_connects_directly_to_local_ollama(self) -> None:
         app_source = (ROOT / "web-demo" / "app.js").read_text(encoding="utf-8")
         index_source = (ROOT / "web-demo" / "index.html").read_text(encoding="utf-8")
-        self.assertIn('http://127.0.0.1:8501/?embed=true', app_source)
-        self.assertIn('http://127.0.0.1:8501/_stcore/health', app_source)
-        self.assertIn('targetAddressSpace: "loopback"', app_source)
+        worker_source = (ROOT / "web-demo" / "python-worker.js").read_text(encoding="utf-8")
+        catalog = json.loads((ROOT / "web-demo" / "catalog.json").read_text(encoding="utf-8"))
+        self.assertIn('http://127.0.0.1:11434', app_source)
+        self.assertIn('link.href = "ollama://"', app_source)
         self.assertIn('mode: "no-cors"', app_source)
-        self.assertIn('id="original-app"', index_source)
-        self.assertIn('allow="local-network; loopback-network; local-network-access"', index_source)
-        self.assertNotIn('class="mentor-pane"', index_source)
+        self.assertIn('targetAddressSpace: "loopback"', app_source)
+        self.assertIn('id="install-actions"', index_source)
+        self.assertIn('id="origin-actions"', index_source)
+        self.assertIn('id="permission-actions"', index_source)
+        self.assertIn('id="jarvis-panel"', index_source)
+        self.assertNotIn('id="original-app"', index_source)
+        self.assertIn('loadPyodide', worker_source)
+        self.assertGreaterEqual(len(catalog["problems"]), 20)
+        self.assertTrue(catalog["system_design"])
+
+    def test_committed_browser_catalog_matches_python_source(self) -> None:
+        committed = json.loads((ROOT / "web-demo" / "catalog.json").read_text(encoding="utf-8"))
+        self.assertEqual(committed, build_catalog())
 
     def test_accepts_loopback_model_servers(self) -> None:
         self.assertEqual(validate_upstream("http://127.0.0.1:11434/"), "http://127.0.0.1:11434")
@@ -97,10 +109,18 @@ class BrowserBridgeAppTests(unittest.TestCase):
                     self.assertIn(b"LeetTutor", response.read())
                     self.assertEqual(
                         response.headers["Content-Security-Policy"],
-                        "default-src 'self'; style-src 'self'; script-src 'self'; "
-                        "connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'; "
+                        "default-src 'self'; style-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net; "
+                        "worker-src 'self'; connect-src 'self' http://127.0.0.1:11434 "
+                        "http://localhost:11434 https://cdn.jsdelivr.net; "
+                        "img-src 'self' data:; frame-ancestors 'none'; "
                         "base-uri 'none'; form-action 'self'",
                     )
+
+                with urllib_request.urlopen(base_url + "/catalog.json", timeout=3) as response:
+                    self.assertTrue(json.load(response)["problems"])
+
+                with urllib_request.urlopen(base_url + "/jarvis-ai-core.png", timeout=3) as response:
+                    self.assertEqual(response.headers["Content-Type"], "image/png")
 
                 body = json.dumps(
                     {
