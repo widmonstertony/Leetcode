@@ -55,6 +55,9 @@ STATIC_PATHS: Final = {
     "/index.html": ("index.html", "text/html; charset=utf-8"),
     "/app.js": ("app.js", "text/javascript; charset=utf-8"),
     "/styles.css": ("styles.css", "text/css; charset=utf-8"),
+    "/python-worker.js": ("python-worker.js", "text/javascript; charset=utf-8"),
+    "/catalog.json": ("catalog.json", "application/json; charset=utf-8"),
+    "/jarvis-ai-core.png": ("jarvis-ai-core.png", "image/png"),
 }
 
 
@@ -125,8 +128,10 @@ class BridgeHandler(BaseHTTPRequestHandler):
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header(
             "Content-Security-Policy",
-            "default-src 'self'; style-src 'self'; script-src 'self'; "
-            "connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'; "
+            "default-src 'self'; style-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net; "
+            "worker-src 'self'; connect-src 'self' http://127.0.0.1:11434 "
+            "http://localhost:11434 https://cdn.jsdelivr.net; "
+            "img-src 'self' data:; frame-ancestors 'none'; "
             "base-uri 'none'; form-action 'self'",
         )
         origin = self.headers.get("Origin", "")

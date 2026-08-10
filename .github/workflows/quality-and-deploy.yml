@@ -32,8 +32,14 @@ jobs:
         run: python -m compileall -q app.py leettutor scripts tests
       - name: Run tests
         run: python -m pytest -q
+      - name: Verify browser curriculum export
+        run: |
+          python scripts/export_web_catalog.py
+          git diff --exit-code -- web-demo/catalog.json
       - name: Validate static demo JavaScript
-        run: node --check web-demo/app.js
+        run: |
+          node --check web-demo/app.js
+          node --check web-demo/python-worker.js
       - name: Package static demo
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         run: |

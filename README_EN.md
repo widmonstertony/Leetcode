@@ -4,17 +4,13 @@
 
 LeetTutor is a local-first AI learning workspace for LeetCode and system design. Its JARVIS mentor chooses the next exercise from your weak areas, reads the live problem/code/test context, and teaches through short Socratic prompts instead of dumping an answer. You can run Python solutions in the browser, use either local or cloud models, and continue on a phone through a trusted home-network host.
 
-## Hosted entry + original app/model on your computer
+## Hosted entry + local Ollama
 
-[tonytan.me/leetcode/](https://tonytan.me/leetcode/) no longer maintains a separate simplified workspace. After the local app starts, the site loads the repository's original `app.py` in the current tab. The floating JARVIS, split workspace, Ace editor, progress, model settings, and mobile navigation therefore share the same Streamlit source as the directly launched product.
+[tonytan.me/leetcode/](https://tonytan.me/leetcode/) is the complete browser product. The split problem/code workspace, floating JARVIS, progress, bilingual copy, and system/light/dark appearance are hosted on the portfolio itself. It no longer embeds local Streamlit and does not require cloning the repository or starting Python.
 
-```bash
-./launch_companion.command
-```
+The page detects `127.0.0.1:11434` directly. It reads local models when Ollama is ready, requests the operating system to open Ollama through `ollama://` when it is stopped, and distinguishes browser permission, `OLLAMA_ORIGINS`, missing-app, and missing-model states when the API remains unavailable. Python tests run in an isolated browser Worker, drafts and progress stay in this browser, and prompts and answers travel only between the browser and local Ollama—not through EC2.
 
-The browser entry remains `https://tonytan.me/leetcode/`. Start Ollama (or LM Studio), run `python3 scripts/launch.py --hosted`, return to the site, and choose “Open original LeetTutor.” Hosted mode binds the original Streamlit app only to `127.0.0.1:8501` and does not open a second local tab. Code, tests, progress, prompts, model names, and responses never pass through EC2. If Chrome local-network permission is unavailable, open `http://127.0.0.1:8501/` as the direct fallback.
-
-`scripts/browser_bridge.py` remains available for compatibility and API diagnostics, but it no longer provides the primary product UI.
+`app.py`, trusted-LAN mode, and `scripts/browser_bridge.py` remain available for local development, private-network access, and compatibility diagnostics, but none is a prerequisite for the hosted product.
 
 ## Highlights
 

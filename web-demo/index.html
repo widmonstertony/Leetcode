@@ -4,56 +4,192 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
-    <meta name="description" content="Run the original LeetTutor and floating JARVIS experience in this browser tab." />
-    <title>LeetTutor — Original JARVIS App</title>
+    <meta name="description" content="LeetTutor is a browser-hosted JARVIS learning workspace that connects directly to your local Ollama models." />
+    <title>LeetTutor — JARVIS Learning System</title>
     <link rel="stylesheet" href="./styles.css" />
     <script type="module" src="./app.js"></script>
   </head>
   <body>
-    <main id="connection-view" class="connection-view">
-      <header class="topbar">
-        <a class="brand" href="https://tonytan.me/projects/leetcode" aria-label="Back to LeetTutor case study">
-          <span class="brand-mark">LT</span>
-          <span><strong>LeetTutor</strong><small>JARVIS Learning System</small></span>
-        </a>
-        <div class="controls">
-          <label><span data-copy="language">Language</span><select id="language"><option value="system">System</option><option value="en">English</option><option value="zh">中文</option></select></label>
-          <label><span data-copy="theme">Theme</span><select id="theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
-        </div>
-      </header>
+    <a class="skip-link" href="#workspace" data-copy="skip">Skip to workspace</a>
 
-      <section class="launch-card" aria-labelledby="connection-title">
-        <div class="launch-copy">
-          <p class="eyebrow" data-copy="eyebrow">ORIGINAL APP · LOCAL EXECUTION</p>
-          <h1 id="connection-title" data-copy="title">The original LeetTutor, in this tab.</h1>
-          <p class="intro" data-copy="intro">No replacement dashboard. The hosted page opens the repository's real Streamlit product, including the floating JARVIS, original workspace, progress, editor, and model settings.</p>
-          <div class="privacy-note"><span aria-hidden="true"></span><span data-copy="privacy">The app and model run only on this computer. tonytan.me does not receive code, prompts, progress, or answers.</span></div>
-        </div>
+    <header class="app-header">
+      <a class="brand" href="https://tonytan.me/projects/leetcode" aria-label="Back to the LeetTutor project page">
+        <span class="product-mark">LT</span>
+        <span class="brand-copy">
+          <span class="brand-eyebrow">JARVIS LEARNING SYSTEM</span>
+          <span class="brand-title">LeetTutor <small>Made by Tony</small></span>
+          <span class="runtime-line"><i id="runtime-dot"></i><span id="runtime-label" data-copy="checkingModel">Checking local Ollama…</span></span>
+        </span>
+      </a>
 
-        <div class="launch-actions">
-          <ol class="steps">
-            <li><span>1</span><div><strong data-copy="step1Title">Start your model</strong><p data-copy="step1Body">Open Ollama, LM Studio, or the configured AMD Metal runtime.</p><code>ollama serve</code></div></li>
-            <li><span>2</span><div><strong data-copy="step2Title">Start the original app</strong><p data-copy="step2Body">Double-click launch_companion.command, or run:</p><code>python3 scripts/launch.py --hosted</code></div></li>
-            <li><span>3</span><div><strong data-copy="step3Title">Connect here</strong><p data-copy="step3Body">Allow local-network access when Chrome asks. The original app then fills this tab.</p></div></li>
-          </ol>
-          <button id="connect-original" type="button" data-copy="connect">Open original LeetTutor</button>
-          <a class="fallback" href="http://127.0.0.1:8501/" target="_blank" rel="noopener noreferrer" data-copy="fallback">Open the original app directly ↗</a>
-          <p id="connection-status" class="status" role="status" data-copy="waiting">Waiting for the original app on this computer.</p>
-          <details>
-            <summary data-copy="troubleshoot">Chrome already blocked it?</summary>
-            <p data-copy="permissionHelp">In the address bar, open Site controls → Site settings → Local network access → Allow, refresh, and connect again.</p>
-          </details>
+      <nav class="mode-switch" aria-label="Practice mode">
+        <button type="button" data-mode="algorithm" class="is-active" data-copy="algorithms">Algorithms</button>
+        <button type="button" data-mode="system" data-copy="systemDesign">System design</button>
+      </nav>
+
+      <div class="header-actions">
+        <button id="connection-button" class="icon-button connection-button" type="button" aria-label="Local model connection" title="Local model connection">
+          <span class="connection-glyph" aria-hidden="true"></span>
+          <span class="sr-only" data-copy="connection">Connection</span>
+        </button>
+        <button id="settings-button" class="icon-button" type="button" aria-label="Language and appearance" title="Language and appearance">
+          <span aria-hidden="true">⚙</span>
+          <span class="sr-only" data-copy="settings">Settings</span>
+        </button>
+      </div>
+    </header>
+
+    <section id="connection-banner" class="connection-banner" hidden>
+      <div>
+        <span id="banner-icon" class="status-icon" aria-hidden="true">!</span>
+        <div><strong id="banner-title"></strong><p id="banner-body"></p></div>
+      </div>
+      <button id="banner-action" type="button" data-copy="fixConnection">Fix connection</button>
+    </section>
+
+    <main id="workspace" class="workspace">
+      <section class="workspace-pane problem-pane" aria-labelledby="problem-pane-title">
+        <header class="pane-header">
+          <div><span class="pane-kicker">PROBLEM</span><h1 id="problem-pane-title" data-copy="problem">Problem</h1></div>
+          <button class="pane-icon" type="button" data-copy-title="hideProblem" aria-label="Hide problem">◧</button>
+        </header>
+
+        <div class="problem-content">
+          <div class="mission-controls">
+            <label><span data-copy="track">Track</span><select id="topic-select"></select></label>
+            <label><span data-copy="mission">Mission</span><select id="problem-select"></select></label>
+          </div>
+          <div class="problem-title-row">
+            <div><p id="problem-number" class="problem-number"></p><h2 id="problem-title">Loading…</h2></div>
+            <span id="difficulty" class="difficulty"></span>
+          </div>
+          <p id="problem-focus" class="problem-focus"></p>
+          <div class="objective-card"><span data-copy="objective">Think first</span><p id="objective"></p></div>
+          <a id="problem-link" class="problem-link" href="#" target="_blank" rel="noopener noreferrer" data-copy="openProblem">Open on LeetCode ↗</a>
+          <div class="progress-row">
+            <span id="progress-label" data-copy="newMission">New mission</span>
+            <button id="mark-review" type="button" class="text-button" data-copy="markReview">Mark for review</button>
+            <button id="mark-mastered" type="button" class="text-button" data-copy="markMastered">Mark mastered</button>
+          </div>
         </div>
+      </section>
+
+      <div id="splitter" class="splitter" role="separator" aria-orientation="vertical" aria-label="Resize problem and code panes" tabindex="0"><span></span></div>
+
+      <section class="workspace-pane code-pane" aria-labelledby="code-pane-title">
+        <header class="pane-header code-header">
+          <div><span class="pane-kicker">SOLUTION</span><h2 id="code-pane-title" data-copy="code">Code</h2></div>
+          <div class="language-switch" role="group" aria-label="Programming language">
+            <button type="button" data-language="python" class="is-active">Python</button>
+            <button type="button" data-language="java">Java</button>
+          </div>
+        </header>
+
+        <div class="editor-toolbar">
+          <span id="editor-filename">solution.py</span>
+          <span id="draft-status" data-copy="savedLocally">Saved in this browser</span>
+        </div>
+        <label class="sr-only" for="code-editor" data-copy="editorLabel">Solution editor</label>
+        <textarea id="code-editor" class="code-editor" spellcheck="false"></textarea>
+        <p class="editor-help" data-copy="editorHelp">Tab indent · Shift+Tab outdent · ⌘/Ctrl+F search</p>
+
+        <details class="test-settings" open>
+          <summary data-copy="testsAndRun">Tests and run settings</summary>
+          <div class="test-grid">
+            <label><span data-copy="methodName">Solution method</span><input id="method-name" type="text" /></label>
+            <label><span data-copy="timeout">Timeout</span><select id="run-timeout"><option value="4">4s</option><option value="8">8s</option></select></label>
+          </div>
+          <label><span data-copy="testCases">JSON test cases</span><textarea id="test-cases" rows="5" spellcheck="false"></textarea></label>
+        </details>
+
+        <div class="run-actions">
+          <button id="run-code" class="primary-button" type="button" data-copy="run">▶ Run in browser</button>
+          <button id="run-review" type="button" data-copy="runAndAsk">Run and ask JARVIS</button>
+        </div>
+        <pre id="run-result" class="run-result" aria-live="polite"></pre>
       </section>
     </main>
 
-    <section id="app-view" class="app-view" hidden aria-label="Original LeetTutor application">
-      <iframe
-        id="original-app"
-        title="Original LeetTutor application"
-        allow="local-network; loopback-network; local-network-access"
-        referrerpolicy="no-referrer"
-      ></iframe>
-    </section>
+    <button id="jarvis-launcher" class="jarvis-launcher" type="button" aria-label="Open floating JARVIS" aria-expanded="false">
+      <img src="./jarvis-ai-core.png" alt="" />
+      <span><strong>JARVIS</strong><small data-copy="mentorRole">AI interview copilot</small></span>
+    </button>
+
+    <aside id="jarvis-panel" class="jarvis-panel" hidden aria-label="JARVIS mentor">
+      <header id="mentor-drag-handle" class="mentor-header">
+        <img src="./jarvis-ai-core.png" alt="JARVIS AI core" />
+        <div><span>JARVIS</span><strong data-copy="mentorRole">AI interview copilot</strong></div>
+        <button id="hide-mentor" type="button" aria-label="Hide JARVIS">×</button>
+      </header>
+      <div id="messages" class="messages" aria-live="polite">
+        <article class="message assistant"><span>J</span><p data-copy="mentorOpening">Connect your local Ollama model and I will coach against the code and results visible in this browser.</p></article>
+      </div>
+      <form id="chat-form" class="chat-form">
+        <label for="message" data-copy="yourReasoning">Your reasoning</label>
+        <textarea id="message" rows="3" data-placeholder="messagePlaceholder" placeholder="Explain your next step…"></textarea>
+        <div><button id="dock-mentor" class="secondary-button" type="button" data-copy="resetPosition">Reset position</button><button class="primary-button" type="submit" data-copy="send">Send</button></div>
+      </form>
+    </aside>
+
+    <dialog id="connection-dialog" class="app-dialog connection-dialog">
+      <form method="dialog" class="dialog-frame">
+        <header><div><span class="dialog-kicker" data-copy="localModel">LOCAL MODEL</span><h2 data-copy="connectOllama">Connect Ollama</h2></div><button class="dialog-close" value="cancel" aria-label="Close">×</button></header>
+        <div class="diagnostic-card">
+          <span id="diagnostic-icon" class="diagnostic-icon" aria-hidden="true"></span>
+          <div><strong id="diagnostic-title"></strong><p id="diagnostic-body"></p></div>
+        </div>
+
+        <section id="ready-actions" class="dialog-section" hidden>
+          <label><span data-copy="model">Local model</span><select id="model-select"></select></label>
+          <button id="enter-workspace" class="primary-button" type="button" data-copy="continue">Continue to workspace</button>
+        </section>
+
+        <section id="launch-actions" class="dialog-section" hidden>
+          <button id="open-ollama" class="primary-button" type="button" data-copy="openOllama">Open Ollama</button>
+          <button id="retry-connection" class="secondary-button" type="button" data-copy="retry">Check again</button>
+          <p class="fine-print" data-copy="launchExplanation">Your browser may ask permission to open the Ollama app. This site cannot start software without your confirmation.</p>
+        </section>
+
+        <section id="install-actions" class="dialog-section" hidden>
+          <p data-copy="missingExplanation">If Ollama did not open, it may not be installed. Install it once, open it, then return here. LeetTutor itself requires no installation.</p>
+          <a class="primary-link" href="https://ollama.com/download" target="_blank" rel="noopener noreferrer" data-copy="downloadOllama">Download Ollama ↗</a>
+          <button id="installed-retry" class="secondary-button" type="button" data-copy="installedRetry">I installed/opened it — check again</button>
+        </section>
+
+        <section id="origin-actions" class="dialog-section" hidden>
+          <p data-copy="originExplanation">Ollama is running, but it has not allowed tonytan.me. Run this one-time command, quit Ollama completely, and reopen it.</p>
+          <div class="command-row"><code id="origin-command"></code><button id="copy-origin-command" type="button" data-copy="copy">Copy</button></div>
+          <button id="origin-retry" class="secondary-button" type="button" data-copy="retry">Check again</button>
+        </section>
+
+        <section id="permission-actions" class="dialog-section" hidden>
+          <p data-copy="permissionExplanation">Allow Local network access for tonytan.me in the browser site settings, refresh this page, and check again.</p>
+          <button id="permission-retry" class="secondary-button" type="button" data-copy="retry">Check again</button>
+        </section>
+
+        <section id="model-actions" class="dialog-section" hidden>
+          <p data-copy="noModelsExplanation">Ollama is ready but no local model was found. Download the recommended tutor model directly into Ollama.</p>
+          <label><span data-copy="modelToDownload">Model to download</span><input id="pull-model-name" value="qwen3.5:9b" spellcheck="false" /></label>
+          <button id="pull-model" class="primary-button" type="button" data-copy="downloadModel">Download model</button>
+          <progress id="pull-progress" max="100" value="0" hidden></progress>
+          <p id="pull-status" class="fine-print" role="status"></p>
+        </section>
+
+        <details class="privacy-details">
+          <summary data-copy="privacyTitle">Privacy and requirements</summary>
+          <p data-copy="privacyBody">Prompts, code, model names, and answers go directly between this browser and Ollama on 127.0.0.1. They are not relayed through tonytan.me.</p>
+        </details>
+      </form>
+    </dialog>
+
+    <dialog id="settings-dialog" class="app-dialog settings-dialog">
+      <form method="dialog" class="dialog-frame">
+        <header><div><span class="dialog-kicker" data-copy="preferences">PREFERENCES</span><h2 data-copy="languageAppearance">Language and appearance</h2></div><button class="dialog-close" value="cancel" aria-label="Close">×</button></header>
+        <label><span data-copy="language">Interface language</span><select id="language"><option value="system">System</option><option value="en">English</option><option value="zh">中文</option></select></label>
+        <label><span data-copy="theme">Appearance</span><select id="theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   </body>
 </html>
