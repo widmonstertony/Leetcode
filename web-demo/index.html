@@ -2,192 +2,302 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
-    <meta name="description" content="LeetTutor is a browser-hosted JARVIS learning workspace that connects directly to your local Ollama models." />
+    <meta name="description" content="LeetTutor is Tony's browser-hosted JARVIS interview learning workspace." />
     <title>LeetTutor — JARVIS Learning System</title>
     <link rel="stylesheet" href="./styles.css" />
     <script type="module" src="./app.js"></script>
   </head>
   <body>
-    <a class="skip-link" href="#workspace" data-copy="skip">Skip to workspace</a>
+    <a class="skip-link" href="#main-content" data-copy="skip">Skip to workspace</a>
+
+    <div id="drawer-backdrop" class="drawer-backdrop" hidden></div>
+    <aside id="settings-drawer" class="settings-drawer" aria-label="Model service" aria-hidden="true">
+      <header class="drawer-header">
+        <div>
+          <span class="workspace-kicker">LOCAL AI RUNTIME</span>
+          <h2 data-copy="modelService">Model service</h2>
+        </div>
+        <button id="close-drawer" class="round-button" type="button" aria-label="Close model settings">×</button>
+      </header>
+
+      <div class="drawer-scroll">
+        <label>
+          <span>API Provider</span>
+          <select id="provider-select">
+            <option value="ollama">Ollama</option>
+            <option value="lmstudio">LM Studio</option>
+            <option value="amdmetal">AMD Metal (Intel Mac)</option>
+            <option value="openai">OpenAI</option>
+            <option value="gemini">Google Gemini</option>
+          </select>
+        </label>
+        <label>
+          <span>API Endpoint</span>
+          <input id="endpoint-input" type="url" value="http://127.0.0.1:11434" spellcheck="false" />
+        </label>
+        <label id="api-key-field" hidden>
+          <span>API Key</span>
+          <input id="api-key-input" type="password" autocomplete="off" data-placeholder="apiKeyPlaceholder" />
+          <small data-copy="apiKeyNote">Kept only in this tab and never sent to tonytan.me.</small>
+        </label>
+
+        <details id="runtime-setup" class="drawer-details">
+          <summary data-copy="hardwareSetup">Hardware detection and model installation</summary>
+          <div class="runtime-card">
+            <div><i id="drawer-runtime-dot" class="runtime-dot"></i><strong id="drawer-runtime-title"></strong></div>
+            <p id="drawer-runtime-body"></p>
+            <p id="device-summary" class="muted"></p>
+            <div class="button-row">
+              <button id="open-runtime" type="button" data-copy="openOllama">Open Ollama</button>
+              <button id="runtime-guide" type="button" data-copy="setupGuide">Setup guide</button>
+            </div>
+          </div>
+        </details>
+
+        <button id="refresh-models" class="wide-button" type="button" data-copy="refreshModels">Check service and refresh models</button>
+        <label>
+          <span data-copy="detectedModels">Detected models</span>
+          <select id="model-select"><option value="" data-copy="manualModel">Enter manually…</option></select>
+        </label>
+        <label id="manual-model-field">
+          <span>Model Name</span>
+          <input id="manual-model" value="qwen3.5:9b" spellcheck="false" />
+        </label>
+
+        <label class="toggle-row">
+          <input id="auto-tune" type="checkbox" checked />
+          <span data-copy="autoTune">Auto-tune for hardware and model</span>
+        </label>
+        <p id="auto-summary" class="muted compact"></p>
+
+        <hr />
+        <h3 data-copy="generationSettings">Generation settings</h3>
+        <label>
+          <span>Temperature <output id="temperature-output">0.20</output></span>
+          <input id="temperature" type="range" min="0" max="2" step="0.05" value="0.2" />
+        </label>
+        <label>
+          <span>Top P <output id="top-p-output">0.90</output></span>
+          <input id="top-p" type="range" min="0" max="1" step="0.05" value="0.9" />
+        </label>
+        <div class="two-fields">
+          <label><span data-copy="timeoutSeconds">Timeout (seconds)</span><input id="model-timeout" type="number" min="5" max="600" step="5" value="180" /></label>
+          <label><span data-copy="contextTokens">Context tokens</span><input id="context-tokens" type="number" min="2048" max="65536" step="1024" value="8192" /></label>
+        </div>
+        <label><span data-copy="reasoningEffort">Reasoning effort</span><select id="reasoning-effort"><option value="none">Off (recommended)</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
+        <label><span data-copy="maxOutput">Maximum output tokens</span><input id="max-output" type="number" min="64" max="4096" step="64" value="768" /></label>
+
+        <details class="drawer-details">
+          <summary data-copy="rolePrompts">Role prompts (editable)</summary>
+          <label><span data-copy="algorithmInterviewer">Algorithm interviewer</span><textarea id="algorithm-prompt" rows="10"></textarea></label>
+          <label><span data-copy="systemArchitect">System architect</span><textarea id="system-prompt" rows="10"></textarea></label>
+        </details>
+
+        <div class="button-row">
+          <button id="save-settings" class="primary-button" type="button" data-copy="saveSettings">Save settings</button>
+          <button id="clear-chat" type="button" data-copy="clearChat">Clear chat</button>
+        </div>
+        <button id="open-vscode" class="wide-button" type="button" data-copy="openVscode">Open repository in VS Code</button>
+        <p class="privacy-note" data-copy="localPrivacy">Code runs only when requested. Local-provider prompts travel directly from this browser to the configured loopback endpoint.</p>
+      </div>
+    </aside>
 
     <header class="app-header">
-      <a class="brand" href="https://tonytan.me/projects/leetcode" aria-label="Back to the LeetTutor project page">
-        <span class="product-mark">LT</span>
-        <span class="brand-copy">
+      <div class="brand-shell">
+        <button id="product-mark" class="product-mark" type="button" aria-label="Open or close model settings" title="Settings and local model">LT</button>
+        <div class="brand-copy">
           <span class="brand-eyebrow">JARVIS LEARNING SYSTEM</span>
-          <span class="brand-title">LeetTutor <small>Made by Tony</small></span>
-          <span class="runtime-line"><i id="runtime-dot"></i><span id="runtime-label" data-copy="checkingModel">Checking local Ollama…</span></span>
-        </span>
-      </a>
+          <div class="brand-title-row"><strong>LeetTutor</strong><span>MADE BY TONY</span></div>
+          <div class="runtime-strip"><i id="runtime-dot" class="runtime-dot"></i><span id="runtime-label" data-copy="checkingModel">Checking local model…</span></div>
+        </div>
+      </div>
 
       <nav class="mode-switch" aria-label="Practice mode">
         <button type="button" data-mode="algorithm" class="is-active" data-copy="algorithms">Algorithms</button>
         <button type="button" data-mode="system" data-copy="systemDesign">System design</button>
       </nav>
 
-      <div class="header-actions">
-        <button id="connection-button" class="icon-button connection-button" type="button" aria-label="Local model connection" title="Local model connection">
-          <span class="connection-glyph" aria-hidden="true"></span>
-          <span class="sr-only" data-copy="connection">Connection</span>
-        </button>
-        <button id="settings-button" class="icon-button" type="button" aria-label="Language and appearance" title="Language and appearance">
-          <span aria-hidden="true">⚙</span>
-          <span class="sr-only" data-copy="settings">Settings</span>
-        </button>
+      <div class="header-utilities">
+        <details id="language-popover" class="utility-popover">
+          <summary data-copy="language">Language</summary>
+          <div class="popover-card">
+            <label><span data-copy="interfaceLanguage">Interface language</span><select id="language"><option value="system">System</option><option value="zh">中文</option><option value="en">English</option></select></label>
+            <label><span data-copy="statementLanguage">LeetCode statement</span><select id="statement-language"><option value="zh">中文（中国站）</option><option value="en">English (LeetCode.com)</option></select></label>
+          </div>
+        </details>
+        <details id="layout-popover" class="utility-popover">
+          <summary data-copy="layout">Layout</summary>
+          <div class="popover-card layout-card">
+            <strong data-copy="visiblePanes">Visible panes</strong>
+            <label class="toggle-row"><input id="show-problem" type="checkbox" checked /><span data-copy="problem">Problem</span></label>
+            <label class="toggle-row"><input id="show-code" type="checkbox" checked /><span data-copy="code">Code</span></label>
+            <label class="toggle-row"><input id="show-mentor" type="checkbox" checked /><span data-copy="tutor">Tutor</span></label>
+            <fieldset><legend data-copy="tutorStyle">Tutor style</legend><label><input type="radio" name="mentor-style" value="docked" /> <span data-copy="docked">Docked</span></label><label><input type="radio" name="mentor-style" value="floating" checked /> <span data-copy="floating">Floating</span></label></fieldset>
+            <button id="restore-layout" type="button" data-copy="restoreLayout">Restore default layout</button>
+          </div>
+        </details>
+        <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Appearance" title="System appearance"><span aria-hidden="true">◐</span></button>
       </div>
     </header>
 
-    <section id="connection-banner" class="connection-banner" hidden>
-      <div>
-        <span id="banner-icon" class="status-icon" aria-hidden="true">!</span>
-        <div><strong id="banner-title"></strong><p id="banner-body"></p></div>
-      </div>
-      <button id="banner-action" type="button" data-copy="fixConnection">Fix connection</button>
-    </section>
+    <main id="main-content">
+      <section id="algorithm-mode" class="mode-page">
+        <section class="mission-control algorithm-mission-control">
+          <div class="mission-summary">
+            <strong id="algorithm-session-title"></strong>
+            <p id="algorithm-session-summary"></p>
+          </div>
+          <button id="start-coaching" type="button" data-copy="startCoaching">Start coaching</button>
+          <button id="next-problem" class="primary-button" type="button" data-copy="nextProblem">JARVIS, next problem</button>
+          <details class="action-popover">
+            <summary data-copy="trainingSettings">Training settings</summary>
+            <div class="popover-card">
+              <label><span data-copy="trainingTrack">Training track</span><select id="topic-select"></select></label>
+              <label><span data-copy="difficulty">Difficulty</span><select id="difficulty-select"><option value="progressive" data-copy="progressive">Progressive</option><option>Easy</option><option>Medium</option><option>Hard</option></select></label>
+              <a id="problem-link" class="wide-link" href="#" target="_blank" rel="noopener noreferrer" data-copy="openLeetcode">Open LeetCode</a>
+              <div class="button-row"><button id="mark-mastered" type="button" data-copy="markMastered">Mark mastered</button><button id="mark-review" type="button" data-copy="reviewLater">Review later</button></div>
+            </div>
+          </details>
+          <details class="visual-map algorithm-visual-map">
+            <summary data-copy="visualMap">Visual map · See the structure first</summary>
+            <div class="visual-map-body">
+              <div class="visual-map-intro"><span>◈</span><div><strong data-copy="mentalModel">Current mental model</strong><p id="algorithm-map-focus"></p></div></div>
+              <div id="algorithm-diagram" class="pattern-diagram"></div>
+              <p data-copy="visualMapHelp">This is a scalable scaffold, not the full answer. JARVIS can redraw it from your current work.</p>
+              <button id="redraw-algorithm" type="button" data-copy="redrawJarvis">Ask JARVIS to redraw my current state</button>
+            </div>
+          </details>
+        </section>
 
-    <main id="workspace" class="workspace">
-      <section class="workspace-pane problem-pane" aria-labelledby="problem-pane-title">
-        <header class="pane-header">
-          <div><span class="pane-kicker">PROBLEM</span><h1 id="problem-pane-title" data-copy="problem">Problem</h1></div>
-          <button class="pane-icon" type="button" data-copy-title="hideProblem" aria-label="Hide problem">◧</button>
-        </header>
+        <section id="algorithm-workspace" class="algorithm-workspace">
+          <section id="problem-pane" class="workspace-pane problem-pane" aria-labelledby="problem-pane-title">
+            <header class="pane-header">
+              <div><span class="workspace-kicker">PROBLEM</span><h1 id="problem-pane-title" data-copy="problem">Problem</h1></div>
+              <button id="hide-problem" class="round-button" type="button" data-copy-title="hideProblem" aria-label="Hide problem">◉̸</button>
+            </header>
+            <div class="pane-scroll problem-content">
+              <h2 id="problem-title"></h2>
+              <p><strong data-copy="roundGoal">Round goal:</strong> <span id="problem-focus"></span></p>
+              <p><strong data-copy="thinkFirst">Think first:</strong> <span id="objective"></span></p>
+              <div id="statement-status" class="info-card" data-copy="statementMissing">The full statement is not loaded yet. Load it once and it stays beside your editor.</div>
+              <article id="problem-statement" class="problem-statement" hidden></article>
+              <button id="load-statement" class="primary-button wide-button" type="button" data-copy="loadStatement">Load full statement and Python template</button>
+              <details class="pane-details">
+                <summary data-copy="changeProblem">Change problem / Import manually</summary>
+                <label><span data-copy="problemReference">LeetCode URL or slug</span><input id="problem-reference" type="text" placeholder="https://leetcode.com/problems/binary-search/" /></label>
+                <button id="import-problem" class="primary-button wide-button" type="button" data-copy="importWorkspace">Import into workspace</button>
+              </details>
+            </div>
+          </section>
 
-        <div class="problem-content">
-          <div class="mission-controls">
-            <label><span data-copy="track">Track</span><select id="topic-select"></select></label>
-            <label><span data-copy="mission">Mission</span><select id="problem-select"></select></label>
-          </div>
-          <div class="problem-title-row">
-            <div><p id="problem-number" class="problem-number"></p><h2 id="problem-title">Loading…</h2></div>
-            <span id="difficulty" class="difficulty"></span>
-          </div>
-          <p id="problem-focus" class="problem-focus"></p>
-          <div class="objective-card"><span data-copy="objective">Think first</span><p id="objective"></p></div>
-          <a id="problem-link" class="problem-link" href="#" target="_blank" rel="noopener noreferrer" data-copy="openProblem">Open on LeetCode ↗</a>
-          <div class="progress-row">
-            <span id="progress-label" data-copy="newMission">New mission</span>
-            <button id="mark-review" type="button" class="text-button" data-copy="markReview">Mark for review</button>
-            <button id="mark-mastered" type="button" class="text-button" data-copy="markMastered">Mark mastered</button>
-          </div>
-        </div>
+          <div id="splitter" class="splitter" role="separator" aria-orientation="vertical" aria-label="Resize problem and code panes" tabindex="0"><span></span></div>
+
+          <section id="code-pane" class="workspace-pane code-pane" aria-labelledby="code-pane-title">
+            <header class="pane-header code-header">
+              <div><span class="workspace-kicker">SOLUTION</span><h2 id="code-pane-title" data-copy="code">Code</h2></div>
+              <div class="language-switch" role="group" aria-label="Programming language"><button type="button" data-language="python" class="is-active">Python</button><button type="button" data-language="java">Java</button></div>
+              <button id="hide-code" class="round-button" type="button" data-copy-title="hideCode" aria-label="Hide code">◉̸</button>
+            </header>
+            <details class="pane-details load-solution-details">
+              <summary data-copy="loadSolution">Load an existing solution</summary>
+              <div class="load-solution-row"><select id="saved-solution-select"><option value="" data-copy="newFile">(New file)</option></select><button id="load-solution" type="button" data-copy="load">Load</button><button id="upload-solution" type="button" data-copy="upload">Upload</button><input id="solution-file" type="file" accept=".py,.java,.txt" hidden /></div>
+            </details>
+            <div class="editor-shell">
+              <pre id="editor-lines" class="editor-lines" aria-hidden="true"></pre>
+              <pre id="editor-highlight" class="editor-highlight" aria-hidden="true"></pre>
+              <label class="sr-only" for="code-editor" data-copy="editorLabel">Solution editor</label>
+              <textarea id="code-editor" class="code-editor" spellcheck="false" wrap="off"></textarea>
+            </div>
+            <p class="editor-help" data-copy="editorHelp">Tab indent · Shift+Tab outdent · auto-indent · line numbers and syntax highlighting · ⌘/Ctrl+F search</p>
+            <details class="test-settings" open>
+              <summary data-copy="testsAndRun">Tests and run settings</summary>
+              <div class="test-grid"><label><span data-copy="methodName">Solution method</span><input id="method-name" type="text" data-placeholder="autoDetect" /></label><label><span data-copy="timeoutSeconds">Timeout (seconds)</span><input id="run-timeout" type="number" min="0.5" max="10" step="0.5" value="3" /></label></div>
+              <label><span data-copy="testCases">Test cases (JSON)</span><textarea id="test-cases" rows="5" spellcheck="false"></textarea></label>
+            </details>
+            <div class="run-actions"><button id="run-code" class="primary-button" type="button" data-copy="run">▶ Run</button><button id="run-review" type="button" data-copy="runAndAsk">Run and ask tutor</button></div>
+            <div id="run-result" class="run-result" aria-live="polite" hidden></div>
+            <details class="pane-details save-solution-details">
+              <summary data-copy="saveRepository">Save to repository</summary>
+              <label><span data-copy="filename">Filename</span><input id="save-filename" type="text" /></label>
+              <div class="button-row"><button id="save-solution" type="button" data-copy="saveCode">Save current code</button><label class="toggle-row"><input id="allow-overwrite" type="checkbox" /><span data-copy="allowOverwrite">Allow overwrite</span></label></div>
+            </details>
+          </section>
+
+          <section id="docked-mentor" class="workspace-pane docked-mentor" hidden aria-label="Docked JARVIS tutor">
+            <header class="pane-header mentor-pane-header">
+              <div class="jarvis-identity compact"><img src="./jarvis-ai-core.png" alt="JARVIS AI core" /><div><strong>JARVIS</strong><span data-copy="mentorRole">AI INTERVIEW COPILOT</span></div></div>
+              <button id="float-mentor" class="round-button" type="button" aria-label="Switch to floating tutor">↗</button>
+              <button id="hide-docked-mentor" class="round-button" type="button" aria-label="Hide tutor">◉̸</button>
+            </header>
+            <p class="mentor-caption"><span data-copy="watching">Watching:</span> <span id="docked-watching"></span></p>
+            <p class="mentor-caption" data-copy="turnRule">Each turn: one short hint and one question. I wait for your answer before continuing.</p>
+            <div id="docked-messages" class="messages docked-messages"></div>
+            <form id="docked-chat-form" class="mentor-composer"><textarea id="docked-message" rows="3" data-placeholder="mentorWorkspacePlaceholder"></textarea><button class="primary-button" type="submit" data-copy="sendJarvis">Send to JARVIS</button><div class="quick-actions"><button type="button" data-action="stuck" data-copy="stuck">I'm stuck</button><button type="button" data-action="next" data-copy="nextStep">Next step</button><button type="button" data-action="review">Review</button></div></form>
+          </section>
+        </section>
+        <div id="all-panes-hidden" class="info-card all-hidden" hidden data-copy="allHidden">All three workspace panes are hidden. Use Layout to restore them.</div>
       </section>
 
-      <div id="splitter" class="splitter" role="separator" aria-orientation="vertical" aria-label="Resize problem and code panes" tabindex="0"><span></span></div>
+      <section id="system-mode" class="mode-page" hidden>
+        <div class="system-grid">
+          <section class="mission-control system-mission-control">
+            <div class="system-brief-row">
+              <div><span class="workspace-kicker">JARVIS MISSION CONTROL</span><h2 id="system-mission-title"></h2><p id="system-mission-summary"></p></div>
+              <button id="start-stress" type="button" data-copy="startStress">Start stress test</button>
+              <button id="next-system-mission" class="primary-button" type="button" data-copy="assignMission">JARVIS, assign mission</button>
+              <details class="action-popover"><summary data-copy="missionSettings">Mission settings</summary><div class="popover-card"><label><span data-copy="missionTrack">Mission track</span><select id="system-track"><option value="auto" data-copy="autoRotation">Auto rotation</option><option value="scaling" data-copy="scaling">Scaling</option><option value="reliability" data-copy="reliability">Reliability</option><option value="realtime" data-copy="realtime">Realtime</option><option value="data" data-copy="dataPlatform">Data platform</option><option value="transactions" data-copy="transactions">Transactions</option></select></label><label><span data-copy="difficulty">Difficulty</span><select id="system-difficulty"><option value="progressive" data-copy="progressive">Progressive</option><option>Easy</option><option>Medium</option><option>Hard</option></select></label></div></details>
+            </div>
+            <div id="system-brief" hidden>
+              <hr /><span class="workspace-kicker">MISSION BRIEF</span><h2 id="system-case-title"></h2><p id="system-requirement"></p><div class="info-card"><strong data-copy="currentCheckpoint">Current checkpoint:</strong> <span id="system-checkpoint"></span></div>
+              <details class="visual-map"><summary data-copy="visualMap">Visual map · See the structure first</summary><div class="visual-map-body"><div class="visual-map-intro"><span>◈</span><div><strong data-copy="mentalModel">Current mental model</strong><p id="system-map-focus"></p></div></div><div id="system-diagram" class="pattern-diagram"></div><button id="redraw-system" type="button" data-copy="redrawArchitecture">Ask JARVIS to redraw my architecture</button></div></details>
+            </div>
+            <details class="pane-details"><summary data-copy="customMission">Customize the mission</summary><label><span data-copy="designRequirement">Design requirement</span><textarea id="custom-requirement" rows="5" data-placeholder="customRequirementPlaceholder"></textarea></label></details>
+          </section>
 
-      <section class="workspace-pane code-pane" aria-labelledby="code-pane-title">
-        <header class="pane-header code-header">
-          <div><span class="pane-kicker">SOLUTION</span><h2 id="code-pane-title" data-copy="code">Code</h2></div>
-          <div class="language-switch" role="group" aria-label="Programming language">
-            <button type="button" data-language="python" class="is-active">Python</button>
-            <button type="button" data-language="java">Java</button>
-          </div>
-        </header>
-
-        <div class="editor-toolbar">
-          <span id="editor-filename">solution.py</span>
-          <span id="draft-status" data-copy="savedLocally">Saved in this browser</span>
+          <section class="system-live-panel">
+            <header><div class="system-live-identity"><span class="system-live-orb"></span><div><strong>JARVIS LIVE</strong><p data-copy="liveSubtitle">The page shows this turn; the floating window keeps full history</p></div></div><span id="system-live-status" class="status-pill" data-copy="ready">Ready</span></header>
+            <p id="system-latest-question" class="latest-question" hidden></p>
+            <div id="system-live-content" class="system-live-content" data-copy="liveEmpty">Answer the current checkpoint or use Next step below; progress and the new reply will appear here.</div>
+          </section>
         </div>
-        <label class="sr-only" for="code-editor" data-copy="editorLabel">Solution editor</label>
-        <textarea id="code-editor" class="code-editor" spellcheck="false"></textarea>
-        <p class="editor-help" data-copy="editorHelp">Tab indent · Shift+Tab outdent · ⌘/Ctrl+F search</p>
-
-        <details class="test-settings" open>
-          <summary data-copy="testsAndRun">Tests and run settings</summary>
-          <div class="test-grid">
-            <label><span data-copy="methodName">Solution method</span><input id="method-name" type="text" /></label>
-            <label><span data-copy="timeout">Timeout</span><select id="run-timeout"><option value="4">4s</option><option value="8">8s</option></select></label>
-          </div>
-          <label><span data-copy="testCases">JSON test cases</span><textarea id="test-cases" rows="5" spellcheck="false"></textarea></label>
-        </details>
-
-        <div class="run-actions">
-          <button id="run-code" class="primary-button" type="button" data-copy="run">▶ Run in browser</button>
-          <button id="run-review" type="button" data-copy="runAndAsk">Run and ask JARVIS</button>
-        </div>
-        <pre id="run-result" class="run-result" aria-live="polite"></pre>
+        <form id="system-command-form" class="system-command-dock">
+          <strong><i></i><span data-copy="commandDock">JARVIS command bar · full conversation at bottom-right</span></strong>
+          <input id="system-command" type="text" data-placeholder="systemCommandPlaceholder" />
+          <button type="submit" data-copy="send">Send</button>
+          <button id="system-next-step" class="primary-button" type="button" data-copy="nextStepOnly">Next step only</button>
+        </form>
       </section>
     </main>
 
-    <button id="jarvis-launcher" class="jarvis-launcher" type="button" aria-label="Open floating JARVIS" aria-expanded="false">
-      <img src="./jarvis-ai-core.png" alt="" />
-      <span><strong>JARVIS</strong><small data-copy="mentorRole">AI interview copilot</small></span>
-    </button>
-
+    <button id="jarvis-launcher" class="jarvis-launcher" type="button" aria-label="Open floating JARVIS" aria-expanded="false"><img src="./jarvis-ai-core.png" alt="" /></button>
     <aside id="jarvis-panel" class="jarvis-panel" hidden aria-label="JARVIS mentor">
-      <header id="mentor-drag-handle" class="mentor-header">
-        <img src="./jarvis-ai-core.png" alt="JARVIS AI core" />
-        <div><span>JARVIS</span><strong data-copy="mentorRole">AI interview copilot</strong></div>
-        <button id="hide-mentor" type="button" aria-label="Hide JARVIS">×</button>
-      </header>
-      <div id="messages" class="messages" aria-live="polite">
-        <article class="message assistant"><span>J</span><p data-copy="mentorOpening">Connect your local Ollama model and I will coach against the code and results visible in this browser.</p></article>
-      </div>
-      <form id="chat-form" class="chat-form">
-        <label for="message" data-copy="yourReasoning">Your reasoning</label>
-        <textarea id="message" rows="3" data-placeholder="messagePlaceholder" placeholder="Explain your next step…"></textarea>
-        <div><button id="dock-mentor" class="secondary-button" type="button" data-copy="resetPosition">Reset position</button><button class="primary-button" type="submit" data-copy="send">Send</button></div>
-      </form>
+      <header id="mentor-drag-handle" class="mentor-header"><div class="jarvis-identity"><img src="./jarvis-ai-core.png" alt="JARVIS AI core" /><div><strong>JARVIS</strong><span data-copy="mentorRole">AI INTERVIEW COPILOT</span></div></div><button id="hide-mentor" type="button" aria-label="Hide JARVIS">×</button></header>
+      <div id="mentor-context" class="mentor-context"></div>
+      <div id="messages" class="messages" aria-live="polite"></div>
+      <form id="chat-form" class="mentor-composer"><label for="message" data-copy="replyJarvis">Reply to JARVIS</label><textarea id="message" rows="3" data-placeholder="messagePlaceholder"></textarea><button class="primary-button" type="submit" data-copy="sendJarvis">Send to JARVIS</button><div class="quick-actions"><button id="dock-mentor" type="button" data-copy="dockRight">Dock to right pane</button><button type="button" data-action="hide" data-copy="hideTutor">Hide tutor</button><button type="button" data-action="stuck" data-copy="stuck">I'm stuck</button><button type="button" data-action="next" data-copy="nextStepOnly">Next step only</button></div></form>
+      <span class="resize-handle" aria-hidden="true"></span>
     </aside>
 
-    <dialog id="connection-dialog" class="app-dialog connection-dialog">
-      <form method="dialog" class="dialog-frame">
-        <header><div><span class="dialog-kicker" data-copy="localModel">LOCAL MODEL</span><h2 data-copy="connectOllama">Connect Ollama</h2></div><button class="dialog-close" value="cancel" aria-label="Close">×</button></header>
-        <div class="diagnostic-card">
-          <span id="diagnostic-icon" class="diagnostic-icon" aria-hidden="true"></span>
-          <div><strong id="diagnostic-title"></strong><p id="diagnostic-body"></p></div>
-        </div>
+    <nav id="mobile-nav" class="mobile-nav" aria-label="Mobile workspace navigation">
+      <button type="button" data-mobile-pane="problem"><span>▤</span><strong data-copy="problem">Problem</strong></button>
+      <button type="button" data-mobile-pane="code" class="is-active"><span>〈/〉</span><strong data-copy="code">Code</strong></button>
+      <button type="button" data-mobile-pane="jarvis"><span>◉</span><strong>JARVIS</strong></button>
+    </nav>
 
-        <section id="ready-actions" class="dialog-section" hidden>
-          <label><span data-copy="model">Local model</span><select id="model-select"></select></label>
-          <button id="enter-workspace" class="primary-button" type="button" data-copy="continue">Continue to workspace</button>
-        </section>
-
-        <section id="launch-actions" class="dialog-section" hidden>
-          <button id="open-ollama" class="primary-button" type="button" data-copy="openOllama">Open Ollama</button>
-          <button id="retry-connection" class="secondary-button" type="button" data-copy="retry">Check again</button>
-          <p class="fine-print" data-copy="launchExplanation">Your browser may ask permission to open the Ollama app. This site cannot start software without your confirmation.</p>
-        </section>
-
-        <section id="install-actions" class="dialog-section" hidden>
-          <p data-copy="missingExplanation">If Ollama did not open, it may not be installed. Install it once, open it, then return here. LeetTutor itself requires no installation.</p>
-          <a class="primary-link" href="https://ollama.com/download" target="_blank" rel="noopener noreferrer" data-copy="downloadOllama">Download Ollama ↗</a>
-          <button id="installed-retry" class="secondary-button" type="button" data-copy="installedRetry">I installed/opened it — check again</button>
-        </section>
-
-        <section id="origin-actions" class="dialog-section" hidden>
-          <p data-copy="originExplanation">Ollama is running, but it has not allowed tonytan.me. Run this one-time command, quit Ollama completely, and reopen it.</p>
-          <div class="command-row"><code id="origin-command"></code><button id="copy-origin-command" type="button" data-copy="copy">Copy</button></div>
-          <button id="origin-retry" class="secondary-button" type="button" data-copy="retry">Check again</button>
-        </section>
-
-        <section id="permission-actions" class="dialog-section" hidden>
-          <p data-copy="permissionExplanation">Allow Local network access for tonytan.me in the browser site settings, refresh this page, and check again.</p>
-          <button id="permission-retry" class="secondary-button" type="button" data-copy="retry">Check again</button>
-        </section>
-
-        <section id="model-actions" class="dialog-section" hidden>
-          <p data-copy="noModelsExplanation">Ollama is ready but no local model was found. Download the recommended tutor model directly into Ollama.</p>
-          <label><span data-copy="modelToDownload">Model to download</span><input id="pull-model-name" value="qwen3.5:9b" spellcheck="false" /></label>
-          <button id="pull-model" class="primary-button" type="button" data-copy="downloadModel">Download model</button>
-          <progress id="pull-progress" max="100" value="0" hidden></progress>
-          <p id="pull-status" class="fine-print" role="status"></p>
-        </section>
-
-        <details class="privacy-details">
-          <summary data-copy="privacyTitle">Privacy and requirements</summary>
-          <p data-copy="privacyBody">Prompts, code, model names, and answers go directly between this browser and Ollama on 127.0.0.1. They are not relayed through tonytan.me.</p>
-        </details>
-      </form>
-    </dialog>
-
-    <dialog id="settings-dialog" class="app-dialog settings-dialog">
-      <form method="dialog" class="dialog-frame">
-        <header><div><span class="dialog-kicker" data-copy="preferences">PREFERENCES</span><h2 data-copy="languageAppearance">Language and appearance</h2></div><button class="dialog-close" value="cancel" aria-label="Close">×</button></header>
-        <label><span data-copy="language">Interface language</span><select id="language"><option value="system">System</option><option value="en">English</option><option value="zh">中文</option></select></label>
-        <label><span data-copy="theme">Appearance</span><select id="theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
-      </form>
+    <dialog id="connection-dialog" class="app-dialog">
+      <div class="dialog-frame">
+        <header><div><span class="workspace-kicker" data-copy="localModel">LOCAL MODEL</span><h2 data-copy="connectOllama">Connect Ollama</h2></div><button class="dialog-close" type="button" aria-label="Close">×</button></header>
+        <div class="diagnostic-card"><span id="diagnostic-icon" class="diagnostic-icon"></span><div><strong id="diagnostic-title"></strong><p id="diagnostic-body"></p></div></div>
+        <section id="ready-actions" class="dialog-section" hidden><button id="enter-workspace" class="primary-button" type="button" data-copy="continue">Continue to workspace</button></section>
+        <section id="launch-actions" class="dialog-section" hidden><button id="open-ollama" class="primary-button" type="button" data-copy="openOllama">Open Ollama</button><button id="retry-connection" type="button" data-copy="retry">Check again</button><p data-copy="launchExplanation">Your browser may ask permission to open Ollama. This site cannot start software without your confirmation.</p></section>
+        <section id="install-actions" class="dialog-section" hidden><p data-copy="missingExplanation">If Ollama did not open, install it once, open it, and return here. LeetTutor itself requires no installation.</p><a class="primary-link" href="https://ollama.com/download" target="_blank" rel="noopener noreferrer" data-copy="downloadOllama">Download Ollama ↗</a><button id="installed-retry" type="button" data-copy="installedRetry">I installed/opened it — check again</button></section>
+        <section id="origin-actions" class="dialog-section" hidden><p data-copy="originExplanation">Ollama is running but has not allowed tonytan.me. Run this command, quit Ollama completely, and reopen it.</p><div class="command-row"><code id="origin-command"></code><button id="copy-origin-command" type="button" data-copy="copy">Copy</button></div><button id="origin-retry" type="button" data-copy="retry">Check again</button></section>
+        <section id="permission-actions" class="dialog-section" hidden><p data-copy="permissionExplanation">Allow Local network access for tonytan.me in browser site settings, refresh, and check again.</p><button id="permission-retry" type="button" data-copy="retry">Check again</button></section>
+        <section id="model-actions" class="dialog-section" hidden><p data-copy="noModelsExplanation">Ollama is ready but no local model was found.</p><label><span data-copy="modelToDownload">Model to download</span><input id="pull-model-name" value="qwen3.5:9b" /></label><button id="pull-model" class="primary-button" type="button" data-copy="downloadModel">Download model</button><progress id="pull-progress" max="100" value="0" hidden></progress><p id="pull-status" role="status"></p></section>
+        <details class="privacy-details"><summary data-copy="privacyTitle">Privacy and requirements</summary><p data-copy="privacyBody">Prompts, code, model names, and answers go directly between this browser and the selected provider. Local-provider traffic is not relayed through tonytan.me.</p></details>
+      </div>
     </dialog>
 
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
