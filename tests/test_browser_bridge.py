@@ -47,6 +47,31 @@ class BrowserBridgeValidationTests(unittest.TestCase):
         committed = json.loads((ROOT / "web-demo" / "catalog.json").read_text(encoding="utf-8"))
         self.assertEqual(committed, build_catalog())
 
+    def test_hosted_ui_keeps_the_original_product_surfaces(self) -> None:
+        index_source = (ROOT / "web-demo" / "index.html").read_text(encoding="utf-8")
+        app_source = (ROOT / "web-demo" / "app.js").read_text(encoding="utf-8")
+        catalog = json.loads((ROOT / "web-demo" / "catalog.json").read_text(encoding="utf-8"))
+        for element_id in (
+            "settings-drawer",
+            "algorithm-session-title",
+            "algorithm-workspace",
+            "problem-pane",
+            "code-pane",
+            "docked-mentor",
+            "system-mission-title",
+            "system-live-content",
+            "system-command-form",
+            "mobile-nav",
+        ):
+            with self.subTest(element_id=element_id):
+                self.assertIn(f'id="{element_id}"', index_source)
+        self.assertIn("chooseNextProblem", app_source)
+        self.assertIn("executePython", app_source)
+        self.assertIn("askJarvis", app_source)
+        self.assertIn("renderSystem", app_source)
+        self.assertTrue(catalog["prompts"]["algorithm"])
+        self.assertTrue(catalog["prompts"]["system_design"])
+
     def test_accepts_loopback_model_servers(self) -> None:
         self.assertEqual(validate_upstream("http://127.0.0.1:11434/"), "http://127.0.0.1:11434")
         self.assertEqual(validate_upstream("http://localhost:1234/v1"), "http://localhost:1234/v1")

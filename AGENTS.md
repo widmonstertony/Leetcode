@@ -6,8 +6,8 @@ LeetTutor has one product experience with two maintained implementations:
   progress, local/cloud providers, and the floating JARVIS;
 - trusted-LAN host mode for that same application;
 - the browser-hosted application in `web-demo`, which preserves the original
-  split-workspace and floating-JARVIS UX while connecting directly to Ollama on
-  `127.0.0.1:11434`. It requires no local Python or Streamlit process.
+  training controls, split workspace, floating/docked JARVIS, system-design
+  mode, and provider settings. It requires no local Python or Streamlit process.
 
 Treat `app.py` as the product reference. A hosted UX change must be checked
 against the Streamlit behavior, translated in Chinese and English, and usable
@@ -18,11 +18,13 @@ Streamlit implementations use different rendering runtimes.
 ## Safety invariants
 
 The public portfolio server must never proxy model traffic. The browser UI may
-call only Ollama's loopback API; Caddy must allow the exact 11434 loopback
-origins without exposing that port publicly. Hosted Python execution stays in a
-bounded Web Worker via Pyodide, and browser drafts/progress stay in local
-storage. The legacy browser bridge must retain its loopback bind, reviewed
-origins, bounded API allowlists, and loopback-only model upstreams. The
+call only the explicitly configured provider directly: reviewed loopback ports
+for Ollama, LM Studio, and AMD Metal, or the official OpenAI/Gemini HTTPS API.
+Caddy must keep an exact `connect-src` allowlist without exposing local ports
+publicly. Cloud API keys are session-only and must never enter local storage.
+Hosted Python execution stays in a bounded Web Worker via Pyodide, and browser
+drafts/progress stay in local storage. The legacy browser bridge must retain its
+loopback bind, reviewed origins, bounded API allowlists, and loopback-only model upstreams. The
 Streamlit app must continue to use `leettutor.code_runner` and `SolutionStore`.
 Do not store prompts, code, API keys, responses, model files, or progress on EC2.
 

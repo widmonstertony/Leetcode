@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "problems": [
     {
       "id": 704,
@@ -10,6 +10,8 @@
       "difficulty": "Easy",
       "focus": "建立闭区间与收敛不变量",
       "invariant_prompt": "循环结束时，left/right 分别代表什么？",
+      "focus_en": "Establish a closed search interval and its convergence invariant",
+      "invariant_prompt_en": "At loop exit, what do left and right represent?",
       "url": "https://leetcode.com/problems/binary-search/"
     },
     {
@@ -21,6 +23,8 @@
       "difficulty": "Easy",
       "focus": "把“找到值”改写为“找第一个可行位置”",
       "invariant_prompt": "什么条件能说明 mid 仍可能是答案？",
+      "focus_en": "Turn exact lookup into finding the first feasible position",
+      "invariant_prompt_en": "What condition means mid can still be the answer?",
       "url": "https://leetcode.com/problems/search-insert-position/"
     },
     {
@@ -32,6 +36,8 @@
       "difficulty": "Medium",
       "focus": "统一 lower bound / upper bound，消灭等号混乱",
       "invariant_prompt": "若使用 while left < right，第一次出现 target 的可行条件是什么？",
+      "focus_en": "Unify lower and upper bounds without ambiguous equality cases",
+      "invariant_prompt_en": "With while left < right, what makes an index feasible for the first target?",
       "url": "https://leetcode.com/problems/find-first-and-last-position-of-element-in-sorted-array/"
     },
     {
@@ -43,6 +49,8 @@
       "difficulty": "Medium",
       "focus": "用 right 作为可靠参照物保留候选",
       "invariant_prompt": "nums[mid] 与 nums[right] 的比较能排除哪一半？",
+      "focus_en": "Use right as a reliable reference while preserving the minimum candidate",
+      "invariant_prompt_en": "What half can nums[mid] versus nums[right] safely eliminate?",
       "url": "https://leetcode.com/problems/find-minimum-in-rotated-sorted-array/"
     },
     {
@@ -54,6 +62,8 @@
       "difficulty": "Medium",
       "focus": "识别有序半边并判断 target 是否在其中",
       "invariant_prompt": "每轮至少有哪一半一定有序？",
+      "focus_en": "Identify the sorted half and decide whether target lies inside it",
+      "invariant_prompt_en": "Which half must be sorted on every iteration?",
       "url": "https://leetcode.com/problems/search-in-rotated-sorted-array/"
     },
     {
@@ -65,6 +75,8 @@
       "difficulty": "Medium",
       "focus": "从二分下标进阶到二分答案",
       "invariant_prompt": "速度越大，完成时间如何单调变化？",
+      "focus_en": "Advance from searching indices to searching the answer space",
+      "invariant_prompt_en": "As speed increases, how does completion time change monotonically?",
       "url": "https://leetcode.com/problems/koko-eating-bananas/"
     },
     {
@@ -76,6 +88,8 @@
       "difficulty": "Hard",
       "focus": "把最优化问题改写为可行性判定",
       "invariant_prompt": "给定最大段和 limit，如何判断它是否可行？",
+      "focus_en": "Rewrite an optimization problem as a feasibility decision",
+      "invariant_prompt_en": "Given a maximum segment sum limit, how can you decide whether it is feasible?",
       "url": "https://leetcode.com/problems/split-array-largest-sum/"
     },
     {
@@ -87,6 +101,8 @@
       "difficulty": "Easy",
       "focus": "明确栈中保存尚未匹配的对象",
       "invariant_prompt": "遇到右括号时，谁应该被结算？",
+      "focus_en": "Define the stack as the set of unmatched opening tokens",
+      "invariant_prompt_en": "When a closing bracket arrives, what should be resolved?",
       "url": "https://leetcode.com/problems/valid-parentheses/"
     },
     {
@@ -98,6 +114,8 @@
       "difficulty": "Medium",
       "focus": "维护与主栈同步的辅助状态",
       "invariant_prompt": "弹出元素后，最小值如何恢复？",
+      "focus_en": "Maintain auxiliary state in lockstep with the main stack",
+      "invariant_prompt_en": "After a pop, how is the previous minimum restored?",
       "url": "https://leetcode.com/problems/min-stack/"
     },
     {
@@ -109,6 +127,8 @@
       "difficulty": "Easy",
       "focus": "理解单调栈中谁等待被结算",
       "invariant_prompt": "栈顶与当前元素满足什么关系时应该 pop？",
+      "focus_en": "Understand which elements are waiting to be resolved in a monotonic stack",
+      "invariant_prompt_en": "What relation between the stack top and current value should trigger a pop?",
       "url": "https://leetcode.com/problems/next-greater-element-i/"
     },
     {
@@ -120,6 +140,8 @@
       "difficulty": "Medium",
       "focus": "栈中保存下标以计算距离",
       "invariant_prompt": "为什么栈里不能只存温度？",
+      "focus_en": "Store indices in the stack so distance remains available",
+      "invariant_prompt_en": "Why is storing temperatures alone insufficient?",
       "url": "https://leetcode.com/problems/daily-temperatures/"
     },
     {
@@ -131,6 +153,8 @@
       "difficulty": "Medium",
       "focus": "用栈保存嵌套层级的现场",
       "invariant_prompt": "进入新的方括号前需要保存哪些状态？",
+      "focus_en": "Use a stack to preserve the context of each nesting level",
+      "invariant_prompt_en": "Which pieces of state must be saved before entering a new bracket?",
       "url": "https://leetcode.com/problems/decode-string/"
     },
     {
@@ -142,6 +166,8 @@
       "difficulty": "Hard",
       "focus": "用单调栈确定左右第一个更矮位置",
       "invariant_prompt": "柱子在什么时候才能确定自己的完整宽度？",
+      "focus_en": "Use a monotonic stack to find the first shorter bar on each side",
+      "invariant_prompt_en": "When does a bar's complete usable width become known?",
       "url": "https://leetcode.com/problems/largest-rectangle-in-histogram/"
     },
     {
@@ -153,6 +179,8 @@
       "difficulty": "Hard",
       "focus": "理解凹槽被结算时的高与宽",
       "invariant_prompt": "pop 出来的柱子在几何上代表什么？",
+      "focus_en": "Resolve each basin with an explicit height and width",
+      "invariant_prompt_en": "Geometrically, what does a popped bar represent?",
       "url": "https://leetcode.com/problems/trapping-rain-water/"
     },
     {
@@ -164,6 +192,8 @@
       "difficulty": "Medium",
       "focus": "固定大小的小顶堆",
       "invariant_prompt": "堆顶应该代表当前保留元素中的什么？",
+      "focus_en": "Keep a fixed-size min-heap",
+      "invariant_prompt_en": "What should the heap top mean among the retained elements?",
       "url": "https://leetcode.com/problems/kth-largest-element-in-an-array/"
     },
     {
@@ -175,6 +205,8 @@
       "difficulty": "Medium",
       "focus": "频率表与固定大小堆组合",
       "invariant_prompt": "为什么大小为 k 的小顶堆更容易淘汰元素？",
+      "focus_en": "Combine a frequency table with a fixed-size heap",
+      "invariant_prompt_en": "Why does a size-k min-heap make eviction straightforward?",
       "url": "https://leetcode.com/problems/top-k-frequent-elements/"
     },
     {
@@ -186,6 +218,8 @@
       "difficulty": "Medium",
       "focus": "说清堆顶和保留集合的含义",
       "invariant_prompt": "使用大小为 k 的堆时，堆顶应该是最近还是最远？",
+      "focus_en": "State exactly what the heap top and retained set mean",
+      "invariant_prompt_en": "For a size-k heap, should the top be the nearest or farthest retained point?",
       "url": "https://leetcode.com/problems/k-closest-points-to-origin/"
     },
     {
@@ -197,6 +231,8 @@
       "difficulty": "Hard",
       "focus": "堆只保存每条链的当前候选",
       "invariant_prompt": "为什么堆大小最多只需要 k？",
+      "focus_en": "Keep only the current candidate from each sorted list",
+      "invariant_prompt_en": "Why does the heap never need more than k entries?",
       "url": "https://leetcode.com/problems/merge-k-sorted-lists/"
     },
     {
@@ -208,6 +244,8 @@
       "difficulty": "Hard",
       "focus": "双堆维护分区与大小不变量",
       "invariant_prompt": "两个堆分别保存哪一半，大小最多能差多少？",
+      "focus_en": "Maintain partition and size invariants with two heaps",
+      "invariant_prompt_en": "Which half belongs in each heap, and how far may their sizes differ?",
       "url": "https://leetcode.com/problems/find-median-from-data-stream/"
     },
     {
@@ -219,6 +257,8 @@
       "difficulty": "Easy",
       "focus": "从递归问题定义一维状态",
       "invariant_prompt": "dp[i] 究竟表示到达 i 的方法数还是剩余方法数？",
+      "focus_en": "Define a one-dimensional state from the recursive question",
+      "invariant_prompt_en": "Does dp[i] count ways to reach i or ways remaining after i?",
       "url": "https://leetcode.com/problems/climbing-stairs/"
     },
     {
@@ -230,6 +270,8 @@
       "difficulty": "Medium",
       "focus": "写清选择当前与跳过当前",
       "invariant_prompt": "dp[i] 的两个来源分别对应什么选择？",
+      "focus_en": "Write the choices to take or skip the current house",
+      "invariant_prompt_en": "Which two choices produce dp[i]?",
       "url": "https://leetcode.com/problems/house-robber/"
     },
     {
@@ -241,6 +283,8 @@
       "difficulty": "Medium",
       "focus": "把环拆成两个互斥的线性问题",
       "invariant_prompt": "第一间和最后一间为什么不能同时出现？",
+      "focus_en": "Split the cycle into two mutually exclusive linear cases",
+      "invariant_prompt_en": "Why can the first and last houses never appear together?",
       "url": "https://leetcode.com/problems/house-robber-ii/"
     },
     {
@@ -252,6 +296,8 @@
       "difficulty": "Medium",
       "focus": "最少数量 DP 的不可达初值",
       "invariant_prompt": "为什么初值不能全部设为 0？",
+      "focus_en": "Choose an unreachable initial value for minimum-count DP",
+      "invariant_prompt_en": "Why can the initial array not be all zeroes?",
       "url": "https://leetcode.com/problems/coin-change/"
     },
     {
@@ -263,6 +309,8 @@
       "difficulty": "Medium",
       "focus": "遍历顺序区分组合与排列",
       "invariant_prompt": "先遍历硬币为什么不会重复计算顺序？",
+      "focus_en": "Use iteration order to distinguish combinations from permutations",
+      "invariant_prompt_en": "Why does iterating coins first avoid recounting orderings?",
       "url": "https://leetcode.com/problems/coin-change-ii/"
     },
     {
@@ -274,6 +322,8 @@
       "difficulty": "Medium",
       "focus": "区分以 i 结尾与前 i 个元素",
       "invariant_prompt": "状态若定义为以 i 结尾，答案一定是 dp[-1] 吗？",
+      "focus_en": "Distinguish a subsequence ending at i from one using the first i items",
+      "invariant_prompt_en": "If dp[i] means ending at i, must the answer be dp[-1]?",
       "url": "https://leetcode.com/problems/longest-increasing-subsequence/"
     },
     {
@@ -285,6 +335,8 @@
       "difficulty": "Medium",
       "focus": "二维前缀状态与字符匹配选择",
       "invariant_prompt": "两个末尾字符不同时，要比较哪两个子问题？",
+      "focus_en": "Define a two-dimensional prefix state and the character-match choice",
+      "invariant_prompt_en": "When the last characters differ, which two subproblems should be compared?",
       "url": "https://leetcode.com/problems/longest-common-subsequence/"
     },
     {
@@ -296,6 +348,8 @@
       "difficulty": "Medium",
       "focus": "让插入、删除、替换对应到坐标移动",
       "invariant_prompt": "一次操作后，i/j 中哪一个会减少？",
+      "focus_en": "Map insert, delete, and replace to coordinate movement",
+      "invariant_prompt_en": "After one operation, which of i and j decreases?",
       "url": "https://leetcode.com/problems/edit-distance/"
     },
     {
@@ -307,6 +361,8 @@
       "difficulty": "Hard",
       "focus": "逆向选择最后一个被戳的气球",
       "invariant_prompt": "为什么选择最后一个比选择第一个更容易定义边界？",
+      "focus_en": "Reverse the choice by selecting the last balloon to burst",
+      "invariant_prompt_en": "Why is choosing the last balloon easier for defining boundaries than choosing the first?",
       "url": "https://leetcode.com/problems/burst-balloons/"
     }
   ],
@@ -415,5 +471,9 @@
       "first_question": "Define the idempotency boundary and the invariant that must hold across every ledger entry.",
       "first_question_cn": "先定义幂等边界，以及每一笔账务分录都必须满足的不变量。"
     }
-  ]
+  ],
+  "prompts": {
+    "algorithm": "你是 JARVIS，Tony 的本地 AI 算法面试教练。你的气质冷静、精确、克制，像一套可靠的智能辅助系统；不要堆砌电影台词，也不要假装自己是任何影视角色。你使用苏格拉底提问法帮助用户自己推出答案。\n\n最高优先级：默认每次只能完成一个短小的“教练回合”，然后停下来等用户回答。不要把一次回复写成教程、总结或完整解题过程。\n\n核心规则：\n1. 绝不直接给出完整代码，除非用户在最新一条消息中明确输入“求最优解代码”。不要把“给个提示”“怎么写”“哪里错了”理解为索要完整代码。\n2. 第一次评估思路或用户要求 Review 时，复杂度最多用一句话说明；连续追问时不要重复复杂度、题意或用户已经答对的内容。\n3. 检查伪代码或现有代码中的边界漏洞，但每回合只能选择当前最关键的一个；其他风险留到后续对话。\n4. 一次只推进一个关键台阶：给一个最小提示，再问一个能让用户动手或继续思考的问题，然后立即停止。\n5. 对二分题，先让用户说清“搜索区间”和“循环结束时 left 代表什么”，优先使用 while left < right 的收敛模板解释。\n6. 对栈、堆和 DP，分别先问清“栈中保存什么”“堆顶代表什么”“状态、选择、转移、初值、遍历顺序”。\n7. 当用户明确输入“求最优解代码”时，才给出用户要求语言的完整实现，并附复杂度、关键不变量和最容易错的边界。\n8. 当用户明确要求“视觉解释”、Mermaid 或 diagram 时，可以输出一个 3～8 节点的 fenced Mermaid 图；它只能展示当前状态、不变量或数据流，不能借画图泄露完整解法。图后仍只问 1 个问题。\n\n普通教练回合的强制输出格式（“求最优解代码”除外）：\n- 总长度不超过 120 个中文字符或 6 个短行。\n- 只能包含两部分：“提示：”后 1～2 句；“轮到你：”后恰好 1 个问题。\n- 不列出完整步骤，不同时讲多个边界，不给代码块；只有用户明确要求视觉解释时可以给一个 Mermaid 代码块。必要时最多引用一行代码或一个最小例子。\n- 用户问“下一步”时，直接给下一步，不复述题目，不预告后面的步骤。\n\n其他风格：\n- 使用与用户相同的语言；默认中文。\n- 简洁、具体，不假装代码已经运行过。\n- 代码 Review 时精确指出相关片段与触发用例，但仍遵守不直接给完整答案的规则。\n",
+    "system_design": "你是 JARVIS，Tony 的本地 AI 系统设计教练，也是一名分布式系统首席架构师。你的气质冷静、精确、克制，像一套可靠的智能辅助系统；不要堆砌电影台词，也不要假装自己是任何影视角色。你通过逐步追问和压力测试帮助用户完善设计。\n\n核心规则：\n1. 面对新需求，先引导用户估算 QPS、DAU、峰值系数、读写比、数据量和延迟/SLA；信息缺失时可以给合理假设，但必须明确标注。\n2. 一场完整训练必须覆盖至少 3 个“死穴”，包括 SPOF（单点故障）、缓存穿透/击穿/雪崩、高并发或一致性中的相关风险；但每个回合只追问当前最关键的一个，绝不能一次倾倒全部问题。\n3. 每一次有实质架构内容的回答都必须包含一个 fenced Mermaid 代码块，格式严格为：```mermaid ... ```。图中节点文字尽量简短，不使用实验性语法。\n4. 逐层推进：需求与估算 → API/数据模型 → 高层架构 → 核心链路 → 扩展性与可靠性 → 权衡。不要在需求尚未明确时直接堆砌组件。\n5. 明确区分事实、假设和取舍；给出数量级计算，并检查单位。\n\n普通教练回合的强制节奏：\n- 每次只推进一个判断或一个取舍，先用 1～3 句回应用户，再问恰好 1 个问题，然后停止。\n- 不写成长篇教程，不提前回答用户还没有走到的层级；Mermaid 图只画当前已确认的范围，保持在 3～8 个节点。\n- 用户只说“下一步”时，直接给下一项决策，不复述整个需求。\n\n回答风格：\n- 使用与用户相同的语言；默认中文。\n- 像真实面试一样先提关键问题，同时给用户足够支架继续作答。\n- 架构图必须与文字方案一致；如果当前信息不足，也要用 Mermaid 画出当前讨论范围和待定边界。\n"
+  }
 }

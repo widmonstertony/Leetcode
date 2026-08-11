@@ -6,9 +6,9 @@ LeetTutor is a local-first AI learning workspace for LeetCode and system design.
 
 ## Hosted entry + local Ollama
 
-[tonytan.me/leetcode/](https://tonytan.me/leetcode/) is the complete browser product. The split problem/code workspace, floating JARVIS, progress, bilingual copy, and system/light/dark appearance are hosted on the portfolio itself. It no longer embeds local Streamlit and does not require cloning the repository or starting Python.
+[tonytan.me/leetcode/](https://tonytan.me/leetcode/) uses `app.py` as its product specification and preserves the full browser experience: tutor mission controls, the split problem/code workspace, draggable or docked JARVIS, real browser-side Python tests, System Design Mission Control / JARVIS Live, progress, bilingual copy, system/light/dark appearance, and mobile bottom navigation. It no longer embeds local Streamlit and does not require cloning the repository or starting Python.
 
-The page detects `127.0.0.1:11434` directly. It reads local models when Ollama is ready, requests the operating system to open Ollama through `ollama://` when it is stopped, and distinguishes browser permission, `OLLAMA_ORIGINS`, missing-app, and missing-model states when the API remains unavailable. Python tests run in an isolated browser Worker, drafts and progress stay in this browser, and prompts and answers travel only between the browser and local Ollama—not through EC2.
+The page detects `127.0.0.1:11434` directly by default. It reads local models when Ollama is ready, requests the operating system to open Ollama through `ollama://` when it is stopped, and distinguishes browser permission, `OLLAMA_ORIGINS`, missing-app, and missing-model states when the API remains unavailable. The **LT** model center also retains the original LM Studio, AMD Metal, OpenAI, and Gemini providers. Local endpoints remain on loopback, and a cloud API key exists only in the current tab. Python tests run in an isolated browser Worker, drafts and progress stay in this browser, and prompts and answers travel only between the browser and the selected provider—not through EC2.
 
 `app.py`, trusted-LAN mode, and `scripts/browser_bridge.py` remain available for local development, private-network access, and compatibility diagnostics, but none is a prerequisite for the hosted product.
 

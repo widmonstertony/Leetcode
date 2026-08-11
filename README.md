@@ -6,9 +6,9 @@
 
 ## 在线入口 + 本机 Ollama
 
-[tonytan.me/leetcode/](https://tonytan.me/leetcode/) 是完整的浏览器版产品：左右题目/代码工作区、漂浮 JARVIS、学习进度、中英文和明暗主题都直接由主页托管。它不再加载本机 Streamlit，也不要求克隆仓库或启动 Python。
+[tonytan.me/leetcode/](https://tonytan.me/leetcode/) 以 `app.py` 为产品规格保留完整浏览器体验：导师训练控制台、左右题目/代码工作区、可停靠或拖动的 JARVIS、真实浏览器 Python 测试、系统设计 Mission Control / JARVIS Live、学习进度、中英文、明暗主题和手机底部导航都由主页直接托管。它不再加载本机 Streamlit，也不要求克隆仓库或启动 Python。
 
-页面会直接检测 `127.0.0.1:11434`：Ollama 已运行时自动读取本机模型；未运行时可通过 `ollama://` 请求系统打开；仍不可用时会区分浏览器权限、`OLLAMA_ORIGINS`、缺少应用和缺少模型，并显示对应操作。Python 测试在浏览器隔离 Worker 中运行；草稿和进度保存在这个浏览器；Prompt 与回答只在浏览器和本机 Ollama 之间传输，不经过 EC2。
+页面默认直接检测 `127.0.0.1:11434`：Ollama 已运行时自动读取本机模型；未运行时可通过 `ollama://` 请求系统打开；仍不可用时会区分浏览器权限、`OLLAMA_ORIGINS`、缺少应用和缺少模型，并显示对应操作。左上角 **LT** 模型中心也保留原版的 LM Studio、AMD Metal、OpenAI 和 Gemini Provider；本地端点直接访问 loopback，云端 API Key 只存在当前标签页。Python 测试在浏览器隔离 Worker 中运行；草稿和进度保存在这个浏览器；Prompt 与回答只在浏览器和所选 Provider 之间传输，不经过 EC2。
 
 `app.py`、局域网模式和 `scripts/browser_bridge.py` 仍保留为本地开发、可信局域网和兼容调试入口，但都不是在线版的前置依赖。
 
