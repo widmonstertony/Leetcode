@@ -1,6 +1,6 @@
 "use strict";
 
-const PYODIDE_BASE = "https://cdn.jsdelivr.net/pyodide/v0.27.7/full/";
+const PYODIDE_BASE = "https://cdn.jsdelivr.net/pyodide/v314.0.3/full/";
 let pyodide;
 
 async function initialize() {
