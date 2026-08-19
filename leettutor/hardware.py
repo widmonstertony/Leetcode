@@ -223,7 +223,7 @@ def recommend_generation_defaults(
         timeout_seconds=timeout_seconds,
         algorithm_reasoning="none",
         system_design_reasoning=(
-            "low" if roomy_gpu and model_parameters <= 27 else "none"
+            "low" if roomy_gpu and model_parameters < 27 else "none"
         ),
         algorithm_max_tokens=1024 if roomy_gpu else 768,
         system_design_max_tokens=(

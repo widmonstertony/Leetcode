@@ -125,3 +125,4 @@ def test_16gb_nvidia_marks_qwen36_27b_as_partially_offloaded() -> None:
     assert defaults.partially_offloaded
     assert defaults.timeout_seconds == 480
     assert defaults.context_tokens == 4096
+    assert defaults.system_design_reasoning == "none"

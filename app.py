@@ -3691,6 +3691,7 @@ def _refresh_ollama_status(endpoint: str) -> OllamaRuntimeStatus:
     status = inspect_ollama_runtime(endpoint)
     st.session_state.ollama_runtime_status = status
     st.session_state.ollama_runtime_endpoint = endpoint
+    st.session_state.ollama_runtime_checked_at = time.monotonic()
     return status
 
 
@@ -3700,6 +3701,13 @@ def render_ollama_setup(endpoint: str, *, enable_vulkan: bool = False) -> bool:
     if (
         "ollama_runtime_status" not in st.session_state
         or st.session_state.get("ollama_runtime_endpoint") != endpoint
+    ):
+        _refresh_ollama_status(endpoint)
+    elif (
+        not st.session_state.ollama_runtime_status.running
+        and time.monotonic()
+        - float(st.session_state.get("ollama_runtime_checked_at", 0.0))
+        >= MODEL_DISCOVERY_OFFLINE_RETRY_SECONDS
     ):
         _refresh_ollama_status(endpoint)
     status: OllamaRuntimeStatus = st.session_state.ollama_runtime_status
@@ -4376,6 +4384,77 @@ def render_model_center(
             )
 
 
+MODEL_DISCOVERY_REFRESH_SECONDS = 30.0
+MODEL_DISCOVERY_OFFLINE_RETRY_SECONDS = 10.0
+
+
+def _discover_provider_models(
+    provider: str,
+    settings: ProviderSettings,
+    *,
+    force: bool = False,
+) -> tuple[list[str], str, bool]:
+    """Refresh provider models automatically without blocking every rerun."""
+
+    cached = list(st.session_state.available_models.get(provider, []))
+    signature = (
+        provider,
+        settings.endpoint.strip(),
+        bool(settings.api_key.strip()),
+    )
+    now = time.monotonic()
+    previous_signature = st.session_state.get("model_discovery_signature")
+    last_attempt = float(st.session_state.get("model_discovery_last_attempt", 0.0))
+    if is_cloud_provider(provider) and not settings.api_key.strip():
+        return cached, "", False
+    if not force and previous_signature == signature:
+        interval = (
+            MODEL_DISCOVERY_REFRESH_SECONDS
+            if cached
+            else MODEL_DISCOVERY_OFFLINE_RETRY_SECONDS
+        )
+        if now - last_attempt < interval:
+            return cached, "", False
+    if not force and provider == "Ollama":
+        runtime_status = st.session_state.get("ollama_runtime_status")
+        if runtime_status is not None and not runtime_status.running:
+            return cached, "", False
+
+    st.session_state.model_discovery_signature = signature
+    st.session_state.model_discovery_last_attempt = now
+    probe_settings = replace(
+        settings, timeout_seconds=min(float(settings.timeout_seconds), 4.0)
+    )
+    try:
+        models = LocalLLMClient(probe_settings).list_models()
+    except LocalLLMError as exc:
+        error = str(exc)
+        st.session_state.model_discovery_error = error
+        return cached, error, True
+    if provider == AMD_METAL_PROVIDER:
+        models = sorted(set(models).union(list_ollama_models()), key=str.casefold)
+    st.session_state.available_models[provider] = models
+    st.session_state.model_discovery_error = ""
+    return models, "", True
+
+
+def _prefer_detected_model(provider: str, models: list[str], manual_option: str) -> None:
+    """Select the configured/manual model as soon as discovery confirms it."""
+
+    provider_slug = provider_state_slug(provider)
+    choice_key = f"model_choice_{provider_slug}"
+    current_choice = st.session_state.get(choice_key)
+    if current_choice in models:
+        return
+    preferred = str(
+        st.session_state.get(f"model_manual_{provider_slug}", "")
+    ).strip()
+    if preferred in models:
+        st.session_state[choice_key] = preferred
+    elif current_choice not in models:
+        st.session_state[choice_key] = models[0] if len(models) == 1 else manual_option
+
+
 def render_sidebar(
     config: AppConfig, mode: str
 ) -> tuple[ProviderSettings, str, float, float, str, int]:
@@ -4450,38 +4529,49 @@ def render_sidebar(
         render_model_center(
             provider=provider, endpoint=endpoint, config=config
         )
+        provider_slug = provider_state_slug(provider)
+        manual_option = _ui("手动输入…", "Enter manually…")
+        models, discovery_error, discovery_attempted = _discover_provider_models(
+            provider, settings
+        )
+        if discovery_attempted:
+            if discovery_error:
+                st.caption(
+                    _ui(
+                        "自动检测暂未连接；应用会在后续操作中重试。",
+                        "Auto-detection is not connected yet; the app will retry.",
+                    )
+                )
+            elif models:
+                st.caption(
+                    _ui("已自动检测到 ", "Automatically detected ")
+                    + f"{len(models)} "
+                    + _ui("个模型。", "model(s).")
+                )
+
         if st.button(
-            _ui("检测服务并刷新模型", "Check service and refresh models"),
+            _ui("立即重新检测", "Detect again now"),
             use_container_width=True,
             disabled=is_cloud_provider(provider)
             and not bool(config.api_key_for(provider)),
         ):
-            try:
-                models = LocalLLMClient(settings).list_models()
-            except LocalLLMError as exc:
-                st.error(str(exc))
+            models, discovery_error, _ = _discover_provider_models(
+                provider, settings, force=True
+            )
+            if discovery_error:
+                st.error(discovery_error)
+            elif models:
+                st.success(f"服务正常，发现 {len(models)} 个模型。")
             else:
-                if provider == AMD_METAL_PROVIDER:
-                    # The endpoint reports only the model currently loaded by
-                    # llama-server. Merge it with local Ollama manifests so a
-                    # downloaded 27B model remains selectable while the 9B
-                    # endpoint is running (or while it is stopped).
-                    models = sorted(
-                        set(models).union(list_ollama_models()), key=str.casefold
-                    )
-                st.session_state.available_models[provider] = models
-                if models:
-                    st.success(f"服务正常，发现 {len(models)} 个模型。")
-                else:
-                    st.warning("服务可访问，但没有返回模型；请确认已经下载并加载模型。")
+                st.warning("服务可访问，但没有返回模型；请确认已经下载并加载模型。")
+
+        _prefer_detected_model(provider, models, manual_option)
 
         models = st.session_state.available_models.get(provider, [])
-        manual_option = _ui("手动输入…", "Enter manually…")
         options = [manual_option, *models]
-        provider_slug = provider_state_slug(provider)
         choice_key = f"model_choice_{provider_slug}"
         if st.session_state.get(choice_key) not in options:
-            st.session_state[choice_key] = manual_option
+            _prefer_detected_model(provider, models, manual_option)
         selected_model = st.selectbox(
             _ui("已检测到的模型", "Detected models"), options, key=choice_key
         )
@@ -4814,6 +4904,18 @@ def render_visual_learning_map(
         )
 
 
+def _streaming_preview(content: str) -> str:
+    """Hide Mermaid fences until the model has finished generating them."""
+
+    without_diagrams = re.sub(
+        r"\x60{3}[ \t]*mermaid\b[\s\S]*?(?:\x60{3}|$)",
+        "\n\n_架构图生成中… / Diagram generating…_\n\n",
+        content,
+        flags=re.IGNORECASE,
+    )
+    return without_diagrams.rstrip() + "▌"
+
+
 def render_assistant_content(content: str, *, render_mermaid: bool) -> None:
     if not render_mermaid:
         st.markdown(content)
@@ -4864,7 +4966,17 @@ def _tutor_output_limit(*, mode: str, display: str, configured: int) -> int:
         marker in display
         for marker in ("下一步", "Next step", "视觉", "Visual")
     ):
-        return min(configured, 512)
+        return min(configured, 768)
+    return configured
+
+
+def _tutor_reasoning_effort(*, mode: str, display: str, configured: str) -> str:
+    """Prefer a guaranteed short answer over hidden reasoning for quick actions."""
+
+    if mode == "system_design" and any(
+        marker in display for marker in ("下一步", "Next step")
+    ):
+        return "none"
     return configured
 
 
@@ -4885,6 +4997,31 @@ def _format_coaching_turn(content: str) -> str:
     )
 
 
+def _system_design_question(content: str) -> str:
+    text = re.sub(
+        r"\x60{3}[ \t]*mermaid\b[\s\S]*?(?:\x60{3}|$)",
+        " ",
+        content,
+        flags=re.IGNORECASE,
+    )
+    questions = re.findall(r"[^。！？.!?\n]{6,}[?？]", text)
+    return questions[-1].strip() if questions else ""
+
+
+def _system_design_reply_signature(content: str) -> str:
+    """Compare the decision question while ignoring diagrams and formatting."""
+
+    focus = _system_design_question(content) or content
+    return re.sub(r"[\W_]+", "", focus.casefold())
+
+
+def _is_repeated_system_design_reply(candidate: str, previous: str) -> bool:
+    candidate_signature = _system_design_reply_signature(candidate)
+    previous_signature = _system_design_reply_signature(previous)
+    return bool(candidate_signature) and candidate_signature == previous_signature
+
+
+
 def submit_to_tutor(
     *,
     mode: str,
@@ -4902,6 +5039,14 @@ def submit_to_tutor(
 ) -> bool:
     history: list[HistoryItem] = st.session_state[f"{mode}_messages"]
     history.append({"role": "user", "content": content, "display": display})
+    previous_assistant = next(
+        (
+            item.get("display", item["content"])
+            for item in reversed(history)
+            if item["role"] == "assistant"
+        ),
+        "",
+    )
     anchor_id = f"mentor-response-{surface}-{mode}-{len(history)}"
 
     with st.chat_message("user"):
@@ -4949,7 +5094,7 @@ def submit_to_tutor(
         thinking_started = False
         last_activity_update = time.monotonic()
         try:
-            with st.spinner("JARVIS 正在加载模型并思考…", show_time=True):
+            with st.spinner("JARVIS 正在处理当前回合…", show_time=True):
                 client = LocalLLMClient(settings)
                 api_messages = _build_api_messages(
                     history, config.prompts[mode]
@@ -4964,7 +5109,11 @@ def submit_to_tutor(
                     model=model,
                     temperature=temperature,
                     top_p=top_p,
-                    reasoning_effort=reasoning_effort,
+                    reasoning_effort=_tutor_reasoning_effort(
+                        mode=mode,
+                        display=display,
+                        configured=reasoning_effort,
+                    ),
                     max_tokens=output_limit,
                 ):
                     if delta.kind == "thinking":
@@ -5009,9 +5158,55 @@ def submit_to_tutor(
                                 )
                             update_mirror_phase("生成中", "Answering")
                             answer_started = True
-                        placeholder.markdown(complete + "▌")
+                        placeholder.markdown(_streaming_preview(complete))
                         if mirror_output is not None:
-                            mirror_output.markdown(complete + "▌")
+                            mirror_output.markdown(_streaming_preview(complete))
+                if (
+                    mode == "system_design"
+                    and any(marker in display for marker in ("下一步", "Next step"))
+                    and _is_repeated_system_design_reply(complete, previous_assistant)
+                ):
+                    repeated_answer = complete
+                    complete = ""
+                    activity.update(
+                        label="检测到重复提示，正在自动推进到新决策…",
+                        state="running",
+                    )
+                    if mirror_activity is not None:
+                        mirror_activity.update(
+                            label="JARVIS 正在避开重复检查点…", state="running"
+                        )
+                    update_mirror_phase("自动去重", "Avoiding repetition")
+                    retry_messages = [
+                        *api_messages,
+                        {"role": "assistant", "content": repeated_answer},
+                        {
+                            "role": "user",
+                            "content": (
+                                "Your answer repeated the previous checkpoint. Retry once. "
+                                "First close it with an explicit Recommendation, Why, and "
+                                "Trade-off. If the student did not answer, label the recommendation "
+                                "as the default used to continue. Then introduce a materially "
+                                "different, not-yet-discussed decision and ask one new question. "
+                                "Never reuse the same final question."
+                            ),
+                        },
+                    ]
+                    for delta in client.stream_chat(
+                        messages=retry_messages,
+                        model=model,
+                        temperature=temperature,
+                        top_p=top_p,
+                        reasoning_effort="none",
+                        max_tokens=output_limit,
+                    ):
+                        if delta.kind == "thinking":
+                            thinking_chars += len(delta.content)
+                        else:
+                            complete += delta.content
+                            placeholder.markdown(_streaming_preview(complete))
+                            if mirror_output is not None:
+                                mirror_output.markdown(_streaming_preview(complete))
         except LocalLLMError as exc:
             placeholder.empty()
             activity.update(label="模型调用失败", state="error")
@@ -6370,11 +6565,21 @@ def render_system_design_mission_control() -> tuple[
             )
             st.markdown("### " + _system_case_text(case, "title"))
             st.write(_system_case_text(case, "requirement"))
+            current_checkpoint = _system_case_text(case, "first_question")
+            for item in reversed(st.session_state.system_design_messages):
+                if item["role"] != "assistant":
+                    continue
+                latest_question = _system_design_question(
+                    item.get("display", item["content"])
+                )
+                if latest_question:
+                    current_checkpoint = latest_question
+                    break
             st.info(
                 "**"
                 + _ui("当前检查点：", "CURRENT CHECKPOINT: ")
                 + "** "
-                + _system_case_text(case, "first_question")
+                + current_checkpoint
             )
             redraw_visual = render_visual_learning_map(
                 mode="system_design",
@@ -6429,15 +6634,52 @@ def render_system_design_mission_control() -> tuple[
     return case, pending
 
 
-def _system_design_next_step_request(requirement: str) -> tuple[str, str]:
+def _system_design_next_step_request(
+    requirement: str, history: list[HistoryItem] | None = None
+) -> tuple[str, str]:
+    previous = next(
+        (
+            item.get("display", item["content"])
+            for item in reversed(history or [])
+            if item["role"] == "assistant"
+            and not item["content"].lstrip().startswith("**MISSION BRIEF**")
+        ),
+        "",
+    )
+    do_not_repeat = (
+        _ui(
+            "\n\n上一条提示是本轮必须先收束的决策。严禁把它重复或改写成同一个问题；"
+            "若学生没有作答，先明确推荐一个默认方案，解释原因和 Trade-off，再基于该默认选择"
+            "提出另一个尚未讨论的架构决策：\n",
+            "\n\nThe previous hint is the decision this turn must close first. Do not "
+            "repeat or paraphrase it as the same question. If the student did not "
+            "answer, recommend an explicit default, explain why and its trade-off, "
+            "then use that default to introduce a different, not-yet-discussed "
+            "architecture decision:\n",
+        )
+        + previous[-1600:]
+        if previous
+        else ""
+    )
     return (
         _ui(
-            "只推进系统设计面试的下一个关键决策。不要复述需求，不要给完整架构；"
-            "先用 1～2 句最小提示，再用 3～6 个节点的 Mermaid 图标出当前已确认范围和一个待定边界，"
-            "最后只问我一个问题。\n\n当前需求：",
-            "Advance only the next critical system-design decision. Do not restate the requirement or provide a full architecture. Give a 1–2 sentence hint, then a 3–6 node Mermaid diagram showing the confirmed scope and one open boundary, and finish with exactly one question.\n\nCurrent requirement: ",
+            "你是系统设计导师。每次只推进一个新决策，但必须先把上一决策讲完整，不能突然写‘假设采用某方案’。"
+            "严格使用以下结构：\n"
+            "**上一决策**\n- **建议：** 明确推荐一个适合当前场景的方案；若学生没回答，写明‘默认采用此方案继续’，不能冒充学生已选择。\n"
+            "- **原因：** 用 1～2 句联系当前负载、一致性或可靠性目标。\n"
+            "- **Trade-off：** 同时说明主要收益、代价，以及什么情况下应改选另一方案。\n"
+            "**下一决策**\n用 1～2 句解释它为何现在出现，再用 3～6 个节点的 Mermaid 图表示已选方案、关键代价和新边界。\n"
+            "**轮到你**\n最后只问一个新的、具体的问题。不要复述需求，不要给完整架构。\n\n当前需求：",
+            "You are a system-design mentor. Advance one new decision per turn, but first close the previous decision; never jump ahead with an unexplained 'assume we chose X'. "
+            "Use exactly this structure:\n"
+            "**Previous decision**\n- **Recommendation:** choose one option for this scenario. If the student did not answer, explicitly say this is the default used to continue; never pretend the student chose it.\n"
+            "- **Why:** connect it to the current load, consistency, or reliability goal in 1–2 sentences.\n"
+            "- **Trade-off:** state the main benefit, cost, and when the alternative would be better.\n"
+            "**Next decision**\nExplain in 1–2 sentences why it follows now, then include a 3–6 node Mermaid diagram showing the chosen option, its key cost, and the new boundary.\n"
+            "**Your turn**\nFinish with exactly one new, concrete question. Do not restate the requirement or provide a full architecture.\n\nCurrent requirement: ",
         )
-        + requirement,
+        + requirement
+        + do_not_repeat,
         _ui("只提示下一步", "Next step only"),
     )
 
@@ -6452,8 +6694,8 @@ def render_system_design_command_dock(
         st.markdown(
             '<p class="system-command-label"><span class="system-command-dot"></span>'
             + _ui(
-                "JARVIS 指令栏 · 完整对话在右下角",
-                "JARVIS command bar · full conversation at bottom-right",
+                "JARVIS 指令栏 · 主界面保留完整对话",
+                "JARVIS command bar · full conversation stays on the page",
             )
             + "</p>",
             unsafe_allow_html=True,
@@ -6495,11 +6737,15 @@ def render_system_design_command_dock(
             )
 
     if next_clicked:
-        return _system_design_next_step_request(requirement)
+        return _system_design_next_step_request(
+            requirement, st.session_state.system_design_messages
+        )
     if send_clicked:
         cleaned = prompt.strip()
         if not cleaned:
-            return _system_design_next_step_request(requirement)
+            return _system_design_next_step_request(
+                requirement, st.session_state.system_design_messages
+            )
         return (
             _ui(
                 "这是系统设计导师对练。请结合已有对话与当前任务，一次只推进一个关键判断。\n\n当前需求：",
@@ -6541,14 +6787,15 @@ def _latest_system_design_exchange() -> tuple[str, str] | None:
 def render_system_design_live_panel(
     pending: tuple[str, str] | None,
 ) -> dict[str, Any] | None:
-    """Render one live/latest turn on the page while the popover owns history."""
+    """Keep the complete system-design dialogue visible in the main workspace."""
 
+    history: list[HistoryItem] = st.session_state.system_design_messages
     latest = _latest_system_design_exchange()
     state_label = (
         _ui("实时生成", "Generating")
         if pending
-        else _ui("最新回合", "Latest turn")
-        if latest
+        else _ui("对话记录", "Conversation")
+        if history
         else _ui("等待开始", "Ready")
     )
     with st.container(border=True, key="system_live_panel"):
@@ -6559,8 +6806,8 @@ def render_system_design_live_panel(
             '<div class="system-live-title">JARVIS LIVE</div>'
             '<div class="system-live-subtitle">'
             + _ui(
-                "主界面只显示当前回合；浮窗保存完整历史",
-                "The page shows this turn; the popover keeps full history",
+                "主界面保留完整对话，可在此滚动回看",
+                "The full conversation stays here and remains scrollable",
             )
             + "</div></div></div></div>",
             unsafe_allow_html=True,
@@ -6571,28 +6818,14 @@ def render_system_design_live_panel(
             unsafe_allow_html=True,
         )
 
-        if pending:
-            st.markdown(
-                '<p class="system-latest-question">'
-                + _ui("你：", "You: ")
-                + html.escape(pending[1])
-                + "</p>",
-                unsafe_allow_html=True,
-            )
-            activity = st.status(
-                _ui("已交给 JARVIS，正在准备当前回合…", "JARVIS is preparing this turn…"),
-                expanded=False,
-            )
-            output = st.empty()
-            state_mount = st.empty()
-            return {
-                "activity": activity,
-                "output": output,
-                "phase": phase,
-                "state_mount": state_mount,
-            }
+        if history:
+            render_history(history, render_mermaid=True)
 
-        if latest:
+        if pending:
+            request_host = st.container(key="system_live_request")
+            return {"phase": phase, "request_host": request_host}
+
+        if not history and latest:
             question, answer = latest
             if question:
                 st.markdown(
@@ -6603,7 +6836,7 @@ def render_system_design_live_panel(
                     unsafe_allow_html=True,
                 )
             render_assistant_content(answer, render_mermaid=True)
-        else:
+        if not history:
             st.caption(
                 _ui(
                     "回答当前检查点，或使用底部“只提示下一步”；状态和新回复会直接出现在这里。",
@@ -6632,9 +6865,41 @@ def render_system_design_mode(
     if command:
         pending = command
 
-    # Main page: one live/latest turn. Floating window: complete transcript.
+    # Both surfaces retain history; the main panel is the default reading surface.
+    # The floating window remains useful on small screens.
     with live_col:
         mirror = render_system_design_live_panel(pending)
+        if pending and mirror:
+            with mirror["request_host"]:
+                if not model:
+                    mirror["phase"].markdown(
+                        '<span class="system-live-status">'
+                        + _ui("未选择模型", "No model selected")
+                        + "</span>",
+                        unsafe_allow_html=True,
+                    )
+                    st.warning(
+                        _ui(
+                            "请先在左侧选择或填写本地模型，然后重试。",
+                            "Select or enter a local model in the sidebar, then retry.",
+                        )
+                    )
+                else:
+                    submit_to_tutor(
+                        mode="system_design",
+                        content=pending[0],
+                        display=pending[1],
+                        settings=settings,
+                        model=model,
+                        temperature=temperature,
+                        top_p=top_p,
+                        reasoning_effort=reasoning_effort,
+                        max_tokens=max_tokens,
+                        config=config,
+                        surface="main",
+                        mirror=mirror,
+                    )
+
     render_floating_mentor(
         mode="system_design",
         model=model,
@@ -6644,8 +6909,8 @@ def render_system_design_mode(
         reasoning_effort=reasoning_effort,
         max_tokens=max_tokens,
         config=config,
-        pending=pending,
-        mirror=mirror,
+        pending=None,
+        mirror=None,
     )
 
 

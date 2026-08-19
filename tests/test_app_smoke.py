@@ -1,8 +1,18 @@
 from pathlib import Path
 
+import app as app_module
+
 from streamlit.testing.v1 import AppTest
 
-from app import _build_api_messages, _format_coaching_turn, _tutor_output_limit
+from app import (
+    _build_api_messages,
+    _format_coaching_turn,
+    _is_repeated_system_design_reply,
+    _system_design_next_step_request,
+    _tutor_output_limit,
+    _tutor_reasoning_effort,
+    _streaming_preview,
+)
 
 
 def test_app_starts_without_contacting_a_model() -> None:
@@ -15,6 +25,10 @@ def test_app_starts_without_contacting_a_model() -> None:
 
     assert "根据硬件和模型自动调优" in [item.label for item in app.toggle]
     assert "上下文 Tokens" in [item.label for item in app.number_input]
+    source = app_path.read_text(encoding="utf-8")
+    assert "_discover_provider_models(" in source
+    assert "MODEL_DISCOVERY_REFRESH_SECONDS = 30.0" in source
+    assert "立即重新检测" in source
 
 
 
@@ -237,6 +251,11 @@ def test_system_design_mode_can_assign_a_jarvis_mission() -> None:
     assert 'state_mount=state_mount' in source
     assert 'update_mirror_phase("已完成", "Complete")' in source
     assert 'mission_col, live_col = st.columns(' in source
+    assert 'with mirror["request_host"]:' in source
+    assert 'surface="main"' in source
+    assert 'pending=None' in source
+    assert 'mirror=None' in source
+    assert "已交给 JARVIS，正在准备当前回合" not in source
     assert 'height: max(340px, min(640px, calc(100vh - 14rem)))' in source
 
     next(item for item in app.button if item.label == "JARVIS 分配任务").click().run(
@@ -435,7 +454,117 @@ def test_algorithm_coaching_turns_have_a_small_output_budget() -> None:
     ) == 768
     assert _tutor_output_limit(
         mode="system_design", display="下一步", configured=1536
-    ) == 512
+    ) == 768
+
+
+class SessionState(dict):
+    def __getattr__(self, name):
+        return self[name]
+
+    def __setattr__(self, name, value):
+        self[name] = value
+
+
+def test_model_discovery_is_automatic_and_throttled(monkeypatch) -> None:
+    state = SessionState(
+        available_models={"Ollama": []},
+        model_manual_ollama="qwen3.8:27b",
+    )
+    calls = []
+
+    class FakeClient:
+        def __init__(self, settings):
+            calls.append(settings.timeout_seconds)
+
+        def list_models(self):
+            return ["qwen3.8:27b", "qwen3.5:9b"]
+
+    monkeypatch.setattr(app_module.st, "session_state", state)
+    monkeypatch.setattr(app_module, "LocalLLMClient", FakeClient)
+    settings = app_module.ProviderSettings(
+        "Ollama", "http://localhost:11434", timeout_seconds=480
+    )
+
+    models, error, attempted = app_module._discover_provider_models(
+        "Ollama", settings
+    )
+    app_module._prefer_detected_model("Ollama", models, "手动输入…")
+    cached, cached_error, cached_attempted = app_module._discover_provider_models(
+        "Ollama", settings
+    )
+
+    assert attempted and not error
+    assert models == ["qwen3.8:27b", "qwen3.5:9b"]
+    assert state.model_choice_ollama == "qwen3.8:27b"
+    assert cached == models
+    assert not cached_error and not cached_attempted
+    assert calls == [4.0]
+
+
+def test_system_design_next_step_prioritizes_a_visible_answer() -> None:
+    assert _tutor_reasoning_effort(
+        mode="system_design", display="Next step only", configured="low"
+    ) == "none"
+    assert _tutor_reasoning_effort(
+        mode="system_design", display="Deep review", configured="low"
+    ) == "low"
+
+
+def test_system_design_next_step_forbids_the_previous_checkpoint() -> None:
+    previous = "请给出 DAU、峰值 QPS、读写比和数据保留年限的假设值？"
+    request, display = _system_design_next_step_request(
+        "设计一个全球票务系统",
+        [{"role": "assistant", "content": previous}],
+    )
+
+    assert display == "只提示下一步"
+    assert previous in request
+    assert "严禁" in request and "重复或改写" in request
+    assert "另一个尚未讨论的架构决策" in request
+    assert "**上一决策**" in request
+    assert "**建议：**" in request
+    assert "默认采用此方案继续" in request
+    assert "**Trade-off：**" in request
+    assert "**下一决策**" in request
+
+
+def test_repeated_system_design_question_is_detected_without_mermaid_noise() -> None:
+    previous = "先量化负载。\n\n请给出 DAU、峰值 QPS 和读写比？"
+    repeated = (
+        "换个图说明。\n```mermaid\nflowchart LR\nA --> B\n```\n"
+        "请给出 DAU、峰值 QPS 和读写比？"
+    )
+
+    assert _is_repeated_system_design_reply(repeated, previous)
+    assert not _is_repeated_system_design_reply(
+        "接下来如何设计座位锁的过期与释放机制？", previous
+    )
+
+
+def test_streaming_preview_never_parses_partial_mermaid() -> None:
+    fence = chr(96) * 3
+    partial = (
+        "Hint\n"
+        + fence
+        + "mermaid\nflowchart LR\nB --> C{lock expiry}▌"
+    )
+    complete = (
+        "Before\n"
+        + fence
+        + "mermaid\nflowchart LR\nA --> B\n"
+        + fence
+        + "\nAfter"
+    )
+
+    partial_preview = _streaming_preview(partial)
+    complete_preview = _streaming_preview(complete)
+
+    assert "flowchart" not in partial_preview
+    assert "lock expiry" not in partial_preview
+    assert "架构图生成中" in partial_preview
+    assert "Before" in complete_preview and "After" in complete_preview
+    assert "flowchart" not in complete_preview
+    assert partial_preview.endswith("▌")
 
 
 def test_short_coaching_turn_is_rendered_as_two_dialogue_beats() -> None:
