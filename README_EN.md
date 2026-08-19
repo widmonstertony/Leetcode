@@ -84,7 +84,7 @@ ChatGPT Plus/Pro and Gemini web subscriptions are not API credits. Configure the
 
 Standard Ollama on Intel macOS normally runs on CPU. For the validated 16-inch Intel MacBook Pro (`MacBookPro16,4`) with Radeon Pro 5600M 8 GB, the app offers an experimental AMD Metal Provider. The in-app installer checks hardware and build tools, downloads the pinned `llama.cpp` source, applies the included Qwen compatibility patch, builds locally, and serves the supported GGUF through an OpenAI-compatible local endpoint.
 
-This backend is experimental and intended for compatible 8 GB Intel Radeon Macs. It does not apply to Apple Silicon, Boot Camp, or 4 GB Radeon models. Read [Intel MacBook Pro + AMD Radeon Guide](docs/INTEL_AMD_MACBOOK.md) before installing.
+This backend is experimental and intended for compatible 8 GB Intel Radeon Macs. The 9B Q4 model fully fits the tested GPU path; a downloaded 27B Q4 model such as `qwen3.8:27b` is detected and starts with a safe partial Radeon offload (16 GPU layers, 2048-token context), with the remaining weights in system RAM. This is a slow deep-review mode, not a real-time tutor mode. MLX is for Apple Silicon unified-memory Macs and is not a Radeon acceleration path for Intel Macs. Read [Intel MacBook Pro + AMD Radeon Guide](docs/INTEL_AMD_MACBOOK.md) before installing.
 
 ## Configuration
 

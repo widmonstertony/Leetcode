@@ -10,8 +10,11 @@ from leettutor.metal_runtime import (
     build_server_command,
     inspect_metal_setup,
     is_intel_macos,
+    list_ollama_models,
+    metal_launch_plan,
     metal_build_commands,
     resolve_ollama_model,
+    selected_metal_model,
 )
 
 
@@ -49,6 +52,29 @@ def test_resolve_ollama_model_from_manifest(tmp_path: Path) -> None:
     blob.write_bytes(b"GGUF")
 
     assert resolve_ollama_model("qwen3.5:9b", models_root=tmp_path) == blob.resolve()
+    assert list_ollama_models(models_root=tmp_path) == ["qwen3.5:9b"]
+
+
+def test_large_gguf_uses_safe_partial_radeon_offload(tmp_path: Path) -> None:
+    model = tmp_path / "qwen3.8-27b-q4.gguf"
+    # Sparse file: enough to exercise the size-based plan without consuming RAM.
+    with model.open("wb") as stream:
+        stream.truncate(16 * 1024**3)
+
+    plan = metal_launch_plan(model, vram_gb=8.0)
+
+    assert plan.partial_offload
+    assert plan.gpu_layers == 16
+    assert plan.context_tokens == 2048
+
+
+def test_selected_metal_model_reads_the_persisted_provider_choice(tmp_path: Path) -> None:
+    (tmp_path / "config.json").write_text(
+        json.dumps({"models": {"AMD Metal（Intel Mac）": "qwen3.8:27b"}}),
+        encoding="utf-8",
+    )
+
+    assert selected_metal_model(project_root=tmp_path, environment={}) == "qwen3.8:27b"
 
 
 def test_server_command_uses_private_vram_loading(tmp_path: Path) -> None:

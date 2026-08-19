@@ -404,6 +404,16 @@ def test_workspace_splitter_and_corner_magnet_are_installed() -> None:
     assert "snapDistance" in source
 
 
+def test_amd_metal_model_switcher_supports_qwen38_and_safe_restart() -> None:
+    app_path = Path(__file__).resolve().parents[1] / "app.py"
+    source = app_path.read_text(encoding="utf-8")
+
+    assert '"qwen3.8:27b"' in source
+    assert "list_ollama_models" in source
+    assert "metal_launch_plan" in source
+    assert "stop_metal_runtime(endpoint)" in source
+
+
 def test_code_editor_uses_ace_with_ide_features() -> None:
     app_path = Path(__file__).resolve().parents[1] / "app.py"
     source = app_path.read_text(encoding="utf-8")

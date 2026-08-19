@@ -69,7 +69,11 @@ from leettutor.metal_runtime import (
     ensure_metal_runtime,
     inspect_metal_setup,
     install_metal_runtime,
+    list_ollama_models,
+    metal_launch_plan,
     open_xcode_tools_installer,
+    resolve_ollama_model,
+    stop_metal_runtime,
 )
 from leettutor.model_manager import ModelDownloadError, pull_ollama_model
 from leettutor.providers import (
@@ -3806,28 +3810,65 @@ def render_amd_metal_setup(
 ) -> None:
     """Offer a complete, recoverable setup path for Intel Mac Radeon users."""
 
+    ollama_endpoint = config.endpoints.get("Ollama", "http://localhost:11434")
+    installed_models = list_ollama_models()
+    supported_models = [
+        AMD_METAL_MODEL,
+        "qwen3.8:27b",
+        "qwen3.5:27b",
+        "qwen3.6:27b",
+    ]
+    model_options = list(dict.fromkeys([*supported_models, *installed_models]))
+    configured_model = config.models.get(AMD_METAL_PROVIDER, AMD_METAL_MODEL)
+    if configured_model not in model_options:
+        model_options.append(configured_model)
+    def sync_amd_model_input() -> None:
+        st.session_state[
+            f"model_manual_{provider_state_slug(AMD_METAL_PROVIDER)}"
+        ] = st.session_state["amd_metal_runtime_model"]
+
+    selected_model = st.selectbox(
+        _ui("适合这台设备的模型", "Recommended model for this device"),
+        model_options,
+        index=model_options.index(configured_model),
+        key="amd_metal_runtime_model",
+        on_change=sync_amd_model_input,
+        format_func=lambda model: (
+            "Qwen 3.5 9B · 快速、完整载入"
+            if model == AMD_METAL_MODEL
+            else f"{model} · 27B 慢速大模型（CPU + Radeon 混合）"
+            if "27b" in model.casefold()
+            else model
+        ),
+    )
+    config.models[AMD_METAL_PROVIDER] = selected_model
+    config.model = selected_model
+    installed_state = st.session_state.setdefault("available_models", {}).setdefault(
+        AMD_METAL_PROVIDER, []
+    )
+    for model in installed_models:
+        if model not in installed_state:
+            installed_state.append(model)
     status = inspect_metal_setup(
         project_root=PROJECT_ROOT,
         endpoint=endpoint,
+        model=selected_model,
         gpu_name=profile.gpu,
         vram_gb=profile.vram_gb,
     )
-    st.selectbox(
-        _ui("适合这台设备的模型", "Recommended model for this device"),
-        [
-            _ui(
-                "Qwen 3.5 9B（Radeon 5600M 实测档）",
-                "Qwen 3.5 9B (tested on Radeon 5600M)",
-            )
-        ],
-        key="recommended_model_amd_metal",
-        disabled=True,
+    model_path = resolve_ollama_model(selected_model)
+    launch_plan = (
+        metal_launch_plan(model_path, vram_gb=profile.vram_gb or 8.0)
+        if model_path is not None
+        else None
     )
     if status.endpoint_running:
         st.success(
             _ui(
-                f"Radeon 私有显存推理正在运行：`{AMD_METAL_MODEL}` · 本机实测约 20 token/s。",
-                f"Radeon private-VRAM inference is running: `{AMD_METAL_MODEL}` · about 20 token/s measured here.",
+                f"Radeon Metal 服务正在运行。当前 Endpoint 可能仍是上一次启动的模型；"
+                "点击下方“切换并重启”即可应用此选择。",
+                "Radeon Metal is running. The endpoint may still serve the previous model; "
+                "use Switch and restart below to apply this selection.",
             )
         )
     elif status.verified_5600m:
@@ -3860,7 +3901,7 @@ def render_amd_metal_setup(
         (status.xcode_tools, _ui("Apple 编译工具", "Apple build tools")),
         (bool(status.cmake_path), "CMake"),
         (bool(status.server_path), _ui("定制 llama-server", "patched llama-server")),
-        (bool(status.model_path), AMD_METAL_MODEL),
+        (bool(status.model_path), selected_model),
         (status.endpoint_running, _ui("本地 GPU 服务", "local GPU endpoint")),
     ]
     st.markdown(
@@ -3888,7 +3929,6 @@ def render_amd_metal_setup(
                     )
                 )
 
-    ollama_endpoint = config.endpoints.get("Ollama", "http://localhost:11434")
     if status.hardware_compatible and status.model_path is None:
         st.divider()
         st.caption(
@@ -3899,7 +3939,7 @@ def render_amd_metal_setup(
         )
         ollama_ready = render_ollama_setup(ollama_endpoint)
         if st.button(
-            _ui(f"下载 {AMD_METAL_MODEL}", f"Download {AMD_METAL_MODEL}"),
+            _ui(f"下载 {selected_model}", f"Download {selected_model}"),
             key="download_amd_metal_model",
             type="primary",
             use_container_width=True,
@@ -3909,7 +3949,7 @@ def render_amd_metal_setup(
                 0.0, text=_ui("正在连接 Ollama…", "Connecting to Ollama…")
             )
             try:
-                for update in pull_ollama_model(ollama_endpoint, AMD_METAL_MODEL):
+                for update in pull_ollama_model(ollama_endpoint, selected_model):
                     detail = update.status
                     if update.total:
                         detail += (
@@ -3928,11 +3968,12 @@ def render_amd_metal_setup(
                 status = inspect_metal_setup(
                     project_root=PROJECT_ROOT,
                     endpoint=endpoint,
+                    model=selected_model,
                     gpu_name=profile.gpu,
                     vram_gb=profile.vram_gb,
                 )
 
-    if status.hardware_compatible and not status.endpoint_running:
+    if status.hardware_compatible:
         st.divider()
         install_label = (
             _ui(
@@ -3947,7 +3988,7 @@ def render_amd_metal_setup(
             key="install_amd_metal_backend",
             type="primary" if not status.server_path else "secondary",
             use_container_width=True,
-            disabled=not status.build_ready,
+            disabled=not status.build_ready or status.endpoint_running,
         ):
             progress_bar = st.progress(
                 0.0, text=_ui("准备安装…", "Preparing setup…")
@@ -3972,6 +4013,7 @@ def render_amd_metal_setup(
                 status = inspect_metal_setup(
                     project_root=PROJECT_ROOT,
                     endpoint=endpoint,
+                    model=selected_model,
                     gpu_name=profile.gpu,
                     vram_gb=profile.vram_gb,
                 )
@@ -3983,8 +4025,19 @@ def render_amd_metal_setup(
                 )
 
         can_start = bool(status.server_path and status.model_path)
+        if launch_plan and launch_plan.partial_offload:
+            st.warning(
+                _ui(
+                    f"`{selected_model}` 约 {launch_plan.model_gb:.1f} GB，超过 8 GB Radeon。"
+                    f"将只卸载约 {launch_plan.gpu_layers} 层到 GPU、使用 2048 context，其余由 32 GB 系统内存承担。"
+                    "能跑但会明显慢，适合深度 Review，不适合实时导师。",
+                    f"`{selected_model}` is about {launch_plan.model_gb:.1f} GB and exceeds the 8 GB Radeon. "
+                    f"The safe plan offloads about {launch_plan.gpu_layers} layers to GPU with a 2048-token context; "
+                    "the rest stays in system RAM. It is usable for deep review, not real-time tutoring.",
+                )
+            )
         if st.button(
-            _ui("立即启动并验证 GPU 服务", "Start and verify GPU endpoint now"),
+            _ui("切换并重启 GPU 服务", "Switch and restart GPU service"),
             key="start_amd_metal_backend",
             use_container_width=True,
             disabled=not can_start,
@@ -3992,14 +4045,17 @@ def render_amd_metal_setup(
             with st.status(
                 _ui("正在把模型载入 Radeon 显存…", "Loading the model into Radeon VRAM…"),
                 expanded=True,
-            ) as service_status:
+                ) as service_status:
                 try:
+                    save_config(config)
+                    stop_metal_runtime(endpoint)
                     handle = ensure_metal_runtime(
                         project_root=PROJECT_ROOT,
                         endpoint=endpoint,
-                        model=AMD_METAL_MODEL,
+                        model=selected_model,
+                        vram_gb=profile.vram_gb or 8.0,
                     )
-                except MetalRuntimeError as exc:
+                except (MetalRuntimeError, ConfigError) as exc:
                     service_status.update(label=str(exc), state="error")
                 else:
                     _retain_metal_runtime(handle)
@@ -4009,7 +4065,10 @@ def render_amd_metal_setup(
                         expanded=False,
                     )
                     st.success(
-                        _ui("现在可以直接使用 JARVIS。", "JARVIS is ready to use.")
+                        _ui(
+                            f"`{selected_model}` 已应用到 JARVIS。",
+                            f"JARVIS is now using `{selected_model}`.",
+                        )
                     )
 
     refresh_col, guide_col = st.columns(2)
@@ -4402,6 +4461,14 @@ def render_sidebar(
             except LocalLLMError as exc:
                 st.error(str(exc))
             else:
+                if provider == AMD_METAL_PROVIDER:
+                    # The endpoint reports only the model currently loaded by
+                    # llama-server. Merge it with local Ollama manifests so a
+                    # downloaded 27B model remains selectable while the 9B
+                    # endpoint is running (or while it is stopped).
+                    models = sorted(
+                        set(models).union(list_ollama_models()), key=str.casefold
+                    )
                 st.session_state.available_models[provider] = models
                 if models:
                     st.success(f"服务正常，发现 {len(models)} 个模型。")
@@ -4451,12 +4518,12 @@ def render_sidebar(
                 )
             if (
                 model
-                and "qwen3.6" in model.casefold()
+                and "27b" in model.casefold()
                 and (profile.vram_gb or 0) <= 8
             ):
                 st.warning(
-                    "Qwen 3.6 27B 的 Q4 文件约 17 GB，无法完整放进 8 GB 显存；"
-                    "它会使用 CPU + GPU 混合推理。可运行，但实时导师体验通常不如 "
+                    "27B 的 Q4 文件约 17 GB，无法完整放进 8 GB 显存；"
+                    "它必须使用 CPU + GPU 混合推理。可运行，但实时导师体验通常不如 "
                     "Qwen 3.5 9B。"
                 )
 

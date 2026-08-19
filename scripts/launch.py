@@ -23,6 +23,7 @@ from leettutor.metal_runtime import (
     MetalRuntimeHandle,
     ensure_metal_runtime,
     is_intel_macos,
+    selected_metal_model,
 )
 from leettutor.lan import (
     build_lan_url,
@@ -139,13 +140,17 @@ def main() -> int:
     if is_intel_macos():
         print("[LeetTutor] 正在检测 Radeon 5600M Metal 加速后端 …")
         try:
-            metal_runtime = ensure_metal_runtime(project_root=PROJECT_ROOT)
+            metal_model = selected_metal_model(project_root=PROJECT_ROOT)
+            print(f"[LeetTutor] AMD Metal 模型：{metal_model}")
+            metal_runtime = ensure_metal_runtime(
+                project_root=PROJECT_ROOT, model=metal_model
+            )
         except MetalRuntimeError as exc:
             print(f"[LeetTutor] Metal 后端未启用：{exc}")
             print("[LeetTutor] 应用仍会启动，可在侧边栏改用 Ollama CPU。")
         else:
             owner = "已自动启动" if metal_runtime.managed else "已经运行"
-            print(f"[LeetTutor] Qwen3.5 9B GPU 服务{owner}：{AMD_METAL_ENDPOINT}")
+            print(f"[LeetTutor] {metal_model} GPU 服务{owner}：{AMD_METAL_ENDPOINT}")
 
     environment = os.environ.copy()
     server_address = "127.0.0.1" if args.hosted else "localhost"
@@ -188,7 +193,7 @@ def main() -> int:
     ]
     if metal_runtime is not None:
         environment.setdefault("LEETTUTOR_AMD_METAL_URL", AMD_METAL_ENDPOINT)
-        environment.setdefault("LEETTUTOR_MODEL", AMD_METAL_MODEL)
+        environment.setdefault("LEETTUTOR_MODEL", metal_model)
     try:
         return subprocess.run(
             command,

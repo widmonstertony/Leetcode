@@ -143,15 +143,15 @@ Ollama 的根地址会自动转换为 OpenAI 兼容的 `/v1` 地址。若服务�
 - **Gemini 网页会员也不是 Gemini API Key。** App 使用 Google AI Studio 创建的 Key，API 免费/付费额度与账单独立。
 - 选择云端 Provider 后，导师需要把当前题面、代码、运行结果和提问发送给该云端 API；Python 代码本身仍只在主机上点击运行后执行。
 
-算法导师默认关闭长思考并限制为 768 个输出 token；系统设计默认低思考和 1536 token。侧边栏可手动开启低/中/高思考；界面会分别显示“加载模型”“正在思考”和“正在回答”。8 GB 显卡默认推荐 `qwen3.5:9b`；`qwen3.6:27b` 的 Q4 文件约 17 GB，只作为 28 GB 以上内存机器的慢速进阶选项。
+算法导师默认关闭长思考并限制为 768 个输出 token；系统设计默认低思考和 1536 token。侧边栏可手动开启低/中/高思考；界面会分别显示“加载模型”“正在思考”和“正在回答”。8 GB 显卡默认推荐 `qwen3.5:9b`；已下载的 `qwen3.8:27b`、`qwen3.6:27b` 等 Q4 27B 模型也会被 AMD Metal 面板识别，但只作为 32 GB RAM 机器的慢速深度 Review 档。
 
 ### 这台 Intel Mac 的 AMD Metal 实验后端
 
 这项功能现在不再依赖开发者电脑旁边预先存在的 `llama.cpp-metal` 仓库。侧栏选择 **AMD Metal（Intel Mac）** 后，内置安装中心会逐项检查 Intel/Radeon/显存、Apple 编译工具、CMake、模型、定制后端和本地服务，并可直接完成缺失步骤。
 
-安装器固定下载官方 `llama.cpp b10240`，应用仓库内的 Qwen 3.5 / Ollama GGUF 兼容补丁并本地编译；源码和产物保存在 Git 忽略的 `.leettutor/llama.cpp-metal`。`run.command` 随后会自动把 Ollama 已下载的 `qwen3.5:9b` 以 private Metal buffer 完整装入 Radeon Pro 5600M 的 8 GB 显存，并在 `11435` 提供只监听本机的 OpenAI 兼容接口。关闭启动器时，其创建的服务也会一起退出；启动日志在 `.leettutor/amd-metal-server.log`。
+安装器固定下载官方 `llama.cpp b10240`，应用仓库内的 Qwen / Ollama GGUF 兼容补丁并本地编译；源码和产物保存在 Git 忽略的 `.leettutor/llama.cpp-metal`。`run.command` 会读取你在 App 里保存的 AMD Metal 模型选择：`qwen3.5:9b` 以 private Metal buffer 完整装入 Radeon Pro 5600M 的 8 GB 显存；约 17 GB 的 `qwen3.8:27b` 等 27B Q4 模型会自动改为安全的部分 GPU 卸载（16 层 GPU、2048 context），剩余权重使用系统 RAM，并在 `11435` 提供只监听本机的 OpenAI 兼容接口。关闭启动器时，其创建的服务也会一起退出；启动日志在 `.leettutor/amd-metal-server.log`。
 
-本机 Q4_K_M 实测：生成约 `19.94 token/s`，CPU 约 `2.97 token/s`，约快 `6.7×`。当前固定为 4096 上下文、单并发并关闭深度思考，避免模型把输出额度全部消耗在隐藏推理中；这是文本对练后端，不启用同一 GGUF 中的视觉部分。若侧边栏显示启动失败，先确认 `qwen3.5:9b` 已下载，并查看上述日志。
+本机 Q4_K_M 的 9B 实测：生成约 `19.94 token/s`，CPU 约 `2.97 token/s`，约快 `6.7×`。27B 不会有同等响应速度，但不会再因试图全量塞进 8 GB 显存而崩溃；这是文本对练后端，不加载同一模型包中的视觉 projector。若侧边栏显示启动失败，确认选择的模型已下载，并查看上述日志。
 
 持续验证的硬件是 16-inch Intel MacBook Pro（`MacBookPro16,4`）+ Radeon Pro 5600M 8 GB。其他 8 GB Intel Radeon 可以实验；4 GB Radeon、Apple Silicon 和 Boot Camp 不走这套 Metal 安装器。完整的 App 内操作、原理、验证方法和故障排查见 [Intel MacBook Pro + AMD Radeon 指南](docs/INTEL_AMD_MACBOOK.md)。
 

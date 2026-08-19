@@ -6,6 +6,7 @@ import json
 import os
 import platform
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -33,6 +34,53 @@ class MetalRuntimeError(RuntimeError):
 
 
 @dataclass(frozen=True)
+class MetalLaunchPlan:
+    """A conservative GPU/CPU split for one GGUF on an Intel Radeon Mac."""
+
+    gpu_layers: int
+    context_tokens: int
+    partial_offload: bool
+    model_gb: float
+
+
+def _model_size_gb(path: Path) -> float:
+    try:
+        return path.stat().st_size / (1024**3)
+    except OSError:
+        return 0.0
+
+
+def metal_launch_plan(model_path: Path, *, vram_gb: float = 8.0) -> MetalLaunchPlan:
+    """Keep models larger than VRAM from dying during an all-GPU allocation.
+
+    The original experimental runner was deliberately tuned for the 6.6 GB 9B
+    model and used ``-ngl 999``. A 17 GB 27B GGUF cannot use that plan on an
+    8 GB Radeon.  Keep enough VRAM for Metal and KV cache, offload a bounded
+    number of transformer layers, and leave the remaining weights in host RAM.
+    """
+
+    model_gb = _model_size_gb(model_path)
+    # A full model also needs Metal scratch buffers and a KV cache.  72% leaves
+    # enough headroom on the 5600M for the 4096-token interactive 9B setting.
+    if not model_gb or model_gb <= vram_gb * 0.72:
+        return MetalLaunchPlan(999, 4096, False, model_gb)
+
+    # Qwen 27B Q4 is about 17 GB.  16 layers uses roughly 4–5 GB of VRAM,
+    # leaving safe room for Metal allocations on an 8 GB card.  Larger cards
+    # scale the cap mildly, but this remains a quality/slow-review mode.
+    gpu_layers = max(8, min(40, int(vram_gb * 2)))
+    return MetalLaunchPlan(gpu_layers, 2048, True, model_gb)
+
+
+def _total_memory_gb() -> float:
+    try:
+        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / (1024**3)
+    except (AttributeError, OSError, ValueError):
+        raw = _command_output(["sysctl", "-n", "hw.memsize"])
+        return int(raw) / (1024**3) if raw.isdigit() else 0.0
+
+
+@dataclass(frozen=True)
 class MetalInstallUpdate:
     """One visible step emitted by the reproducible runtime installer."""
 
@@ -56,6 +104,7 @@ class MetalSetupStatus:
     patch_path: Path
     server_path: Path | None
     model_path: Path | None
+    model: str
     endpoint_running: bool
     log_path: Path
 
@@ -108,7 +157,7 @@ class MetalSetupStatus:
             f"Git: {'ready' if self.git_path else 'missing'}",
             f"CMake: {'ready' if self.cmake_path else 'missing'}",
             f"Patched llama-server: {'ready' if self.server_path else 'missing'}",
-            f"{AMD_METAL_MODEL}: {'ready' if self.model_path else 'missing'}",
+            f"{self.model}: {'ready' if self.model_path else 'missing'}",
             f"Local endpoint: {'running' if self.endpoint_running else 'stopped'}",
         ]
 
@@ -172,6 +221,7 @@ def inspect_metal_setup(
     *,
     project_root: Path = PROJECT_ROOT,
     endpoint: str = AMD_METAL_ENDPOINT,
+    model: str = AMD_METAL_MODEL,
     gpu_name: str = "",
     vram_gb: float | None = None,
     system: str | None = None,
@@ -197,7 +247,8 @@ def inspect_metal_setup(
         server_path=find_llama_server(
             project_root=project_root, environment=environment
         ),
-        model_path=resolve_ollama_model(environment=environment),
+        model_path=resolve_ollama_model(model, environment=environment),
+        model=model,
         endpoint_running=endpoint_ready(endpoint),
         log_path=project_root / ".leettutor" / "amd-metal-server.log",
     )
@@ -471,6 +522,66 @@ def find_llama_server(
     )
 
 
+def _ollama_models_root(
+    *, models_root: Path | None = None, environment: Mapping[str, str] | None = None
+) -> Path:
+    env = os.environ if environment is None else environment
+    return models_root or Path(
+        env.get("OLLAMA_MODELS", Path.home() / ".ollama" / "models")
+    )
+
+
+def list_ollama_models(
+    *,
+    models_root: Path | None = None,
+    environment: Mapping[str, str] | None = None,
+) -> list[str]:
+    """List GGUF-backed Ollama models even when the Ollama API is stopped."""
+
+    root = _ollama_models_root(models_root=models_root, environment=environment)
+    manifests = root / "manifests" / "registry.ollama.ai" / "library"
+    try:
+        entries = sorted(path for path in manifests.rglob("*") if path.is_file())
+    except OSError:
+        return []
+    models: list[str] = []
+    for manifest in entries:
+        try:
+            relative = manifest.relative_to(manifests)
+        except ValueError:
+            continue
+        if len(relative.parts) < 2:
+            continue
+        name = "/".join(relative.parts[:-1])
+        tag = relative.parts[-1]
+        if name and tag:
+            models.append(f"{name}:{tag}")
+    return sorted(set(models), key=str.casefold)
+
+
+def selected_metal_model(
+    *,
+    project_root: Path = PROJECT_ROOT,
+    environment: Mapping[str, str] | None = None,
+) -> str:
+    """Read the selected AMD model without importing Streamlit configuration."""
+
+    env = os.environ if environment is None else environment
+    explicit = env.get("LEETTUTOR_METAL_MODEL", "").strip()
+    if explicit:
+        return explicit
+    try:
+        raw = json.loads((project_root / "config.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return AMD_METAL_MODEL
+    models = raw.get("models", {})
+    if isinstance(models, Mapping):
+        value = models.get(AMD_METAL_PROVIDER)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return AMD_METAL_MODEL
+
+
 def resolve_ollama_model(
     model: str = AMD_METAL_MODEL,
     *,
@@ -483,7 +594,7 @@ def resolve_ollama_model(
         candidate = Path(configured).expanduser()
         return candidate.resolve() if candidate.is_file() else None
 
-    root = models_root or Path(env.get("OLLAMA_MODELS", Path.home() / ".ollama" / "models"))
+    root = _ollama_models_root(models_root=models_root, environment=env)
     name, separator, tag = model.rpartition(":")
     if not separator:
         name, tag = model, "latest"
@@ -508,6 +619,45 @@ def resolve_ollama_model(
     return None
 
 
+def stop_metal_runtime(endpoint: str = AMD_METAL_ENDPOINT) -> None:
+    """Stop the loopback llama-server currently listening on the AMD endpoint."""
+
+    parsed = urlsplit(endpoint)
+    if parsed.scheme != "http" or parsed.hostname not in {"localhost", "127.0.0.1"}:
+        raise MetalRuntimeError("只能重启本机 AMD Metal Endpoint。")
+    port = parsed.port or 11435
+    try:
+        result = subprocess.run(
+            ["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN", "-t"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise MetalRuntimeError(f"无法定位 AMD Metal 服务：{exc}") from exc
+    pids = {int(value) for value in result.stdout.split() if value.isdigit()}
+    for pid in pids:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            continue
+        except PermissionError as exc:
+            raise MetalRuntimeError("没有权限停止当前 AMD Metal 服务。") from exc
+    deadline = time.monotonic() + 5
+    while pids and time.monotonic() < deadline:
+        alive = set()
+        for pid in pids:
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                continue
+            alive.add(pid)
+        pids = alive
+        if pids:
+            time.sleep(0.1)
+
+
 def endpoint_ready(endpoint: str = AMD_METAL_ENDPOINT, *, timeout: float = 1.0) -> bool:
     request = Request(
         endpoint.rstrip("/") + "/models",
@@ -526,11 +676,13 @@ def build_server_command(
     *,
     endpoint: str = AMD_METAL_ENDPOINT,
     model: str = AMD_METAL_MODEL,
+    vram_gb: float = 8.0,
 ) -> list[str]:
     parsed = urlsplit(endpoint)
     if parsed.scheme != "http" or parsed.hostname not in {"localhost", "127.0.0.1"}:
         raise MetalRuntimeError("AMD Metal Endpoint 必须是本机 http 地址。")
     port = parsed.port or 11435
+    plan = metal_launch_plan(model_path, vram_gb=vram_gb)
     return [
         str(server),
         "-m",
@@ -546,13 +698,13 @@ def build_server_command(
         "-dev",
         "MTL0",
         "-ngl",
-        "999",
+        str(plan.gpu_layers),
         "-fit",
-        "off",
+        "on" if plan.partial_offload else "off",
         "-lm",
         "none",
         "-c",
-        "4096",
+        str(plan.context_tokens),
         "-b",
         "64",
         "-ub",
@@ -576,6 +728,7 @@ def ensure_metal_runtime(
     project_root: Path = PROJECT_ROOT,
     endpoint: str = AMD_METAL_ENDPOINT,
     model: str = AMD_METAL_MODEL,
+    vram_gb: float = 8.0,
     environment: Mapping[str, str] | None = None,
     startup_timeout: float = 60.0,
 ) -> MetalRuntimeHandle:
@@ -595,11 +748,26 @@ def ensure_metal_runtime(
     if model_path is None:
         raise MetalRuntimeError(f"没有找到 {model}；请先运行 ollama pull {model}。")
 
+    plan = metal_launch_plan(model_path, vram_gb=vram_gb)
+    if plan.partial_offload:
+        host_memory = _total_memory_gb()
+        # The file itself is mapped into RAM in addition to macOS, Metal and
+        # KV allocations. Refuse a launch that is likely to invoke the OOM
+        # killer instead of leaving the machine unresponsive.
+        minimum_memory = plan.model_gb + 8.0
+        if host_memory and host_memory < minimum_memory:
+            raise MetalRuntimeError(
+                f"{model} 约 {plan.model_gb:.1f} GB；部分 GPU 卸载至少需要约 "
+                f"{minimum_memory:.0f} GB RAM，这台机器检测到 {host_memory:.0f} GB。"
+            )
+
     runtime_dir = project_root / ".leettutor"
     runtime_dir.mkdir(parents=True, exist_ok=True)
     log_path = runtime_dir / "amd-metal-server.log"
     log_file = log_path.open("ab", buffering=0)
-    command = build_server_command(server, model_path, endpoint=endpoint, model=model)
+    command = build_server_command(
+        server, model_path, endpoint=endpoint, model=model, vram_gb=vram_gb
+    )
     child_env = env.copy()
     child_env["GGML_METAL_CONCURRENCY_DISABLE"] = "1"
     try:
