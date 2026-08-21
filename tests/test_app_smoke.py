@@ -35,6 +35,10 @@ def test_app_starts_without_contacting_a_model() -> None:
 def test_chat_submission_is_preserved_without_a_selected_model() -> None:
     app_path = Path(__file__).resolve().parents[1] / "app.py"
     app = AppTest.from_file(str(app_path)).run(timeout=20)
+    model_choice = next(
+        item for item in app.selectbox if item.label == "已检测到的模型"
+    )
+    model_choice.set_value("手动输入…").run(timeout=20)
     model = next(item for item in app.text_input if item.label == "Model Name")
     model.set_value("").run(timeout=20)
     question = next(item for item in app.text_area if item.label == "继续回复 JARVIS")
