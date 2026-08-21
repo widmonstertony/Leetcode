@@ -4444,7 +4444,7 @@ def _prefer_detected_model(provider: str, models: list[str], manual_option: str)
     provider_slug = provider_state_slug(provider)
     choice_key = f"model_choice_{provider_slug}"
     current_choice = st.session_state.get(choice_key)
-    if current_choice in models:
+    if current_choice == manual_option or current_choice in models:
         return
     preferred = str(
         st.session_state.get(f"model_manual_{provider_slug}", "")
