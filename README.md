@@ -190,6 +190,7 @@ Leetcode/
 
 ## 刷题资料入口
 
+- [刷题与系统设计白话讲义（2026 面试版）](docs/system-design/README.md)：覆盖 Heap、动态规划、Stack、双指针与系统设计的可直接阅读讲义，含图解、面试要点、常见坑与现代架构补充；在线版：[tonytan.me/system-design/](https://tonytan.me/system-design/)。
 - [Python 重刷手册](docs/PYTHON_PLAYBOOK.md)：二分、Stack、Heap、DP 模板与路线。
 - [Python 题解](python/)：今后的主要重刷目录。
 - [Java 题解](java/)：旧解和后续 Java 版本都保留在这里，不是 archive。
