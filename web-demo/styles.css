@@ -188,22 +188,22 @@ main { width: 100%; }
   /* A phone is a reading surface first. Keep operational copy out of the
      sub-12px desktop density, while the code editor remains compact enough
      to show a useful amount of source. */
-  button, input, select, textarea, .wide-link { font-size: max(.94rem, 15px); }
+  button, input, select, textarea, .wide-link { font-size: max(.94rem, 15px) !important; }
   label, .muted, .info-card, .privacy-note, .mission-summary strong,
   .mission-summary p, .visual-map > summary, .visual-map-intro p,
   .diagram-node, .problem-content > p, .problem-statement,
   .pane-details > summary, .message-body, .mentor-caption, .mentor-context,
   .system-brief-row p, .system-live-content, .latest-question,
   .dialog-section p, .diagnostic-card p, .primary-link, .privacy-details p,
-  .toast { font-size: max(.88rem, 14px); }
+  .toast { font-size: max(.88rem, 14px) !important; }
   .workspace-kicker, .brand-eyebrow, .brand-title-row span, .runtime-strip,
   .drawer-details > summary, .system-live-identity p, .status-pill,
   .system-command-dock > strong, .mobile-nav button strong,
   .jarvis-identity span, .editor-help, .test-settings summary,
-  .quick-actions button { font-size: max(.75rem, 12px); }
-  .language-switch button { font-size: max(.78rem, 12.5px); }
-  .editor-highlight, .code-editor, .editor-lines { font-size: 13px; }
-  .test-settings textarea, .test-settings input, .run-result { font-size: 12px; }
+  .quick-actions button { font-size: max(.75rem, 12px) !important; }
+  .language-switch button { font-size: max(.78rem, 12.5px) !important; }
+  .editor-highlight, .code-editor, .editor-lines { font-size: 13px !important; }
+  .test-settings textarea, .test-settings input, .run-result { font-size: 12px !important; }
 }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }
