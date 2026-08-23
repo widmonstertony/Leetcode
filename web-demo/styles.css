@@ -184,6 +184,26 @@ main { width: 100%; }
   .jarvis-launcher { right: 12px; bottom: calc(70px + env(safe-area-inset-bottom)); width: 50px; height: 50px; }.jarvis-launcher img { width: 39px; height: 39px; }.jarvis-panel { inset: auto 6px calc(66px + env(safe-area-inset-bottom)) 6px !important; width: auto !important; min-width: 0; height: min(75vh, 620px); resize: none; border-radius: 14px; }.resize-handle { display: none; }
   .system-grid { display: block; min-height: 0; padding-bottom: 106px; }.system-mission-control { padding: 15px; }.system-brief-row { grid-template-columns: 1fr 1fr; }.system-brief-row > div:first-child { grid-column: 1 / -1; }.system-brief-row > .action-popover { grid-column: 1 / -1; }.system-live-panel { margin-top: 9px; }.system-live-content { min-height: 220px; }.system-command-dock { right: 7px; bottom: calc(66px + env(safe-area-inset-bottom)); left: 7px; grid-template-columns: 1fr auto; }.system-command-dock > strong { grid-column: 1 / -1; }.system-command-dock input { min-width: 0; }.system-command-dock button:last-child { grid-column: 1 / -1; }
   .two-fields, .test-grid { grid-template-columns: 1fr; }.button-row { flex-wrap: wrap; }.load-solution-row { grid-template-columns: 1fr 1fr; }.load-solution-row select { grid-column: 1 / -1; }.settings-drawer { width: min(405px, calc(100vw - 14px)); }.dialog-frame { padding: 16px; }.pattern-diagram, .mermaid-lite { justify-content: flex-start; }
+
+  /* A phone is a reading surface first. Keep operational copy out of the
+     sub-12px desktop density, while the code editor remains compact enough
+     to show a useful amount of source. */
+  button, input, select, textarea, .wide-link { font-size: max(.94rem, 15px); }
+  label, .muted, .info-card, .privacy-note, .mission-summary strong,
+  .mission-summary p, .visual-map > summary, .visual-map-intro p,
+  .diagram-node, .problem-content > p, .problem-statement,
+  .pane-details > summary, .message-body, .mentor-caption, .mentor-context,
+  .system-brief-row p, .system-live-content, .latest-question,
+  .dialog-section p, .diagnostic-card p, .primary-link, .privacy-details p,
+  .toast { font-size: max(.88rem, 14px); }
+  .workspace-kicker, .brand-eyebrow, .brand-title-row span, .runtime-strip,
+  .drawer-details > summary, .system-live-identity p, .status-pill,
+  .system-command-dock > strong, .mobile-nav button strong,
+  .jarvis-identity span, .editor-help, .test-settings summary,
+  .quick-actions button { font-size: max(.75rem, 12px); }
+  .language-switch button { font-size: max(.78rem, 12.5px); }
+  .editor-highlight, .code-editor, .editor-lines { font-size: 13px; }
+  .test-settings textarea, .test-settings input, .run-result { font-size: 12px; }
 }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }
