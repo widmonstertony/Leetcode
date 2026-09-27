@@ -1,0 +1,112 @@
+:root {
+  --bg: #edf7ff;
+  --panel: rgba(248, 252, 255, .72);
+  --panel-soft: rgba(239, 247, 255, .72);
+  --panel-glass: rgba(247, 252, 255, .66);
+  --line: rgba(72, 111, 154, .16);
+  --line-strong: rgba(72, 111, 154, .28);
+  --text: #13243c;
+  --muted: #61758e;
+  --primary: #5b91f1;
+  --primary-strong: #3974d8;
+  --primary-soft: rgba(102, 154, 246, .14);
+  --shadow: 0 24px 70px rgba(58, 99, 147, .16), inset 0 1px 0 rgba(255,255,255,.82);
+}
+:root[data-theme="dark"] {
+  --bg: #07101d;
+  --panel: rgba(25, 40, 60, .78);
+  --panel-soft: rgba(30, 47, 69, .7);
+  --panel-glass: rgba(22, 36, 55, .64);
+  --line: rgba(183, 214, 255, .14);
+  --line-strong: rgba(183, 214, 255, .24);
+  --text: #f2f7ff;
+  --muted: #a8b8cd;
+  --primary: #8bb7ff;
+  --primary-strong: #a9caff;
+  --primary-soft: rgba(132, 182, 255, .13);
+  --shadow: 0 28px 85px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.12);
+}
+
+body {
+  background:
+    radial-gradient(circle at 12% -6%, rgba(105, 165, 255, .34), transparent 31rem),
+    radial-gradient(circle at 92% 8%, rgba(195, 225, 255, .26), transparent 28rem),
+    linear-gradient(155deg, var(--bg), color-mix(in srgb, var(--bg) 74%, #19334e));
+  background-attachment: fixed;
+}
+
+.app-header {
+  top: max(10px, env(safe-area-inset-top));
+  width: min(calc(100% - 20px), 1840px);
+  min-height: 66px;
+  margin: max(10px, env(safe-area-inset-top)) auto 0;
+  border: 1px solid rgba(255,255,255,.72);
+  border-radius: 24px;
+  background: linear-gradient(145deg, rgba(255,255,255,.18), transparent 48%), var(--panel-glass);
+  -webkit-backdrop-filter: blur(30px) saturate(175%);
+  backdrop-filter: blur(30px) saturate(175%);
+  box-shadow: var(--shadow);
+}
+
+:root[data-theme="dark"] .app-header {
+  border-color: rgba(255,255,255,.13);
+}
+
+.workspace-pane,
+.jarvis-panel,
+.settings-drawer,
+.popover-card,
+.app-dialog .dialog-frame,
+.system-live-panel,
+.system-command-dock {
+  border-color: rgba(255,255,255,.55);
+  background: linear-gradient(145deg, rgba(255,255,255,.14), transparent 44%), var(--panel-glass);
+  -webkit-backdrop-filter: blur(26px) saturate(165%);
+  backdrop-filter: blur(26px) saturate(165%);
+  box-shadow: var(--shadow);
+}
+
+:root[data-theme="dark"] .workspace-pane,
+:root[data-theme="dark"] .jarvis-panel,
+:root[data-theme="dark"] .settings-drawer,
+:root[data-theme="dark"] .popover-card,
+:root[data-theme="dark"] .app-dialog .dialog-frame,
+:root[data-theme="dark"] .system-live-panel,
+:root[data-theme="dark"] .system-command-dock {
+  border-color: rgba(255,255,255,.12);
+}
+
+.workspace-pane,
+.jarvis-panel {
+  border-radius: 20px;
+}
+
+.product-mark,
+.primary-button {
+  background: linear-gradient(145deg, #8fc0ff, #5a95ef);
+  color: #10243d;
+}
+
+@media (max-width: 760px) {
+  .app-header {
+    top: max(7px, env(safe-area-inset-top));
+    width: calc(100% - 14px);
+    margin-top: max(7px, env(safe-area-inset-top));
+    border-radius: 20px;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .app-header,
+  .workspace-pane,
+  .jarvis-panel,
+  .settings-drawer,
+  .popover-card,
+  .app-dialog .dialog-frame,
+  .system-live-panel,
+  .system-command-dock {
+    background: var(--panel);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
