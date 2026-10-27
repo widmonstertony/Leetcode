@@ -9,12 +9,15 @@ from .metal_runtime import AMD_METAL_ENDPOINT, AMD_METAL_PROVIDER
 
 OPENAI_PROVIDER = "OpenAI API"
 GEMINI_PROVIDER = "Gemini API"
+STRATA_PROVIDER = "Strata"
+STRATA_MODEL = "qwen3.8-flash-next-iq3_s"
 
 
 def default_endpoints() -> dict[str, str]:
     return {
         "Ollama": "http://localhost:11434",
         "LM Studio": "http://localhost:1234/v1",
+        STRATA_PROVIDER: "http://127.0.0.1:8080/v1",
         AMD_METAL_PROVIDER: AMD_METAL_ENDPOINT,
         OPENAI_PROVIDER: "https://api.openai.com/v1",
         GEMINI_PROVIDER: "https://generativelanguage.googleapis.com/v1beta/openai",
@@ -25,6 +28,7 @@ def default_models() -> dict[str, str]:
     return {
         "Ollama": "",
         "LM Studio": "",
+        STRATA_PROVIDER: STRATA_MODEL,
         AMD_METAL_PROVIDER: "qwen3.5:9b",
         OPENAI_PROVIDER: "gpt-5.6-terra",
         GEMINI_PROVIDER: "gemini-3.6-flash",

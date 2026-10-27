@@ -3,7 +3,18 @@ import stat
 from pathlib import Path
 
 from leettutor.config import AppConfig, load_config, save_config, save_secrets
-from leettutor.providers import GEMINI_PROVIDER, OPENAI_PROVIDER
+from leettutor.providers import GEMINI_PROVIDER, OPENAI_PROVIDER, STRATA_PROVIDER, STRATA_MODEL
+
+
+def test_strata_configuration_preserves_other_providers(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("LEETTUTOR_STRATA_URL", "http://127.0.0.1:8080/v1")
+    path = tmp_path / "config.json"
+    save_config(AppConfig(provider=STRATA_PROVIDER, model=STRATA_MODEL), path)
+    configured = load_config(path)
+    assert configured.provider == STRATA_PROVIDER
+    assert configured.models[STRATA_PROVIDER] == STRATA_MODEL
+    assert configured.endpoints["Ollama"] == "http://localhost:11434"
+    assert configured.endpoints[STRATA_PROVIDER] == "http://127.0.0.1:8080/v1"
 
 
 def test_config_round_trip(tmp_path: Path, monkeypatch) -> None:
