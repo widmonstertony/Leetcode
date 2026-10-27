@@ -79,6 +79,7 @@ from leettutor.model_manager import ModelDownloadError, pull_ollama_model
 from leettutor.providers import (
     GEMINI_PROVIDER,
     OPENAI_PROVIDER,
+    STRATA_PROVIDER,
     default_endpoints,
     default_models,
     is_cloud_provider,
@@ -130,6 +131,7 @@ REASONING_LABELS = {
 PROVIDER_ENDPOINT_KEYS = {
     "Ollama": "endpoint_ollama",
     "LM Studio": "endpoint_lm_studio",
+    STRATA_PROVIDER: "endpoint_strata",
     AMD_METAL_PROVIDER: "endpoint_amd_metal",
     OPENAI_PROVIDER: "endpoint_openai",
     GEMINI_PROVIDER: "endpoint_gemini",
@@ -4250,6 +4252,9 @@ def render_model_center(
 ) -> None:
     """Show hardware-aware recommendations and provider-specific installation."""
 
+    if provider == STRATA_PROVIDER:
+        st.info(_ui("Strata 复用已经启动的本机模型；这里不下载权重。", "Strata uses an already-running local model; this page does not download weights."))
+        return
     if is_cloud_provider(provider):
         with st.expander(
             _ui("云端 API 设置", "Cloud API setup"),

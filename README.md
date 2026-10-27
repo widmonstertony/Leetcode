@@ -12,6 +12,20 @@
 
 `app.py`、局域网模式和 `scripts/browser_bridge.py` 仍保留为本地开发、可信局域网和兼容调试入口，但都不是在线版的前置依赖。
 
+### 连接已经运行的 Strata
+
+本机 Streamlit 版选择 **Strata**，默认直接连接 `http://127.0.0.1:8080/v1`。
+网页版选择 **Strata**，通过已有的受限本机桥接连接它：
+
+```powershell
+.\.venv\Scripts\python.exe scripts\browser_bridge.py --port 1234 --upstream http://127.0.0.1:8080/v1
+```
+
+然后打开 `http://127.0.0.1:1234/?provider=strata`，或在在线版模型中心选择 Strata。
+1234 是网站安全策略已允许的本机模型端口；若 LM Studio 正在使用它，请先解决端口冲突，
+不要覆盖现有服务。桥接只监听回环地址，限制来源和 API 路径；提示词和代码不经过网站服务器。
+这不会下载模型或启动第二份推理实例。OllamaForge 的后台入口可让桥接在登录时无终端启动。
+
 ## 最快启动
 
 先安装 Python 3.10+。Ollama 本体和模型都可以随后在 LeetTutor 页面内安装。

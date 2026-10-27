@@ -1,5 +1,14 @@
 # LeetTutor — JARVIS Learning System
 
+To reuse an existing Strata server, select **Strata** in the local application
+(direct endpoint `http://127.0.0.1:8080/v1`). For the browser application, run
+`.venv\Scripts\python.exe scripts\browser_bridge.py --port 1234 --upstream http://127.0.0.1:8080/v1`
+and open `http://127.0.0.1:1234/?provider=strata`, or select Strata on the hosted
+site. Port 1234 is already permitted by the site's browser policy; refuse a
+conflict with an existing LM Studio service. The existing bridge retains its
+loopback bind, origin checks and bounded API. No weights are downloaded, no
+second inference server is started, and model traffic stays on the PC.
+
 [中文说明](README.md)
 
 LeetTutor is a local-first AI learning workspace for LeetCode and system design. Its JARVIS mentor chooses the next exercise from your weak areas, reads the live problem/code/test context, and teaches through short Socratic prompts instead of dumping an answer. You can run Python solutions in the browser, use either local or cloud models, and continue on a phone through a trusted home-network host.

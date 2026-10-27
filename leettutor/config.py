@@ -14,6 +14,7 @@ from .metal_runtime import AMD_METAL_PROVIDER
 from .providers import (
     GEMINI_PROVIDER,
     OPENAI_PROVIDER,
+    STRATA_PROVIDER,
     default_endpoints,
     default_models,
     is_cloud_provider,
@@ -228,6 +229,9 @@ def load_config(
     )
     config.endpoints["LM Studio"] = os.getenv(
         "LEETTUTOR_LM_STUDIO_URL", config.endpoints["LM Studio"]
+    )
+    config.endpoints[STRATA_PROVIDER] = os.getenv(
+        "LEETTUTOR_STRATA_URL", config.endpoints[STRATA_PROVIDER]
     )
     config.endpoints[AMD_METAL_PROVIDER] = os.getenv(
         "LEETTUTOR_AMD_METAL_URL", config.endpoints[AMD_METAL_PROVIDER]

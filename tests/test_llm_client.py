@@ -10,7 +10,7 @@ from leettutor.llm_client import (
     normalize_base_url,
 )
 from leettutor.metal_runtime import AMD_METAL_API_KEY, AMD_METAL_PROVIDER
-from leettutor.providers import GEMINI_PROVIDER, OPENAI_PROVIDER
+from leettutor.providers import GEMINI_PROVIDER, OPENAI_PROVIDER, STRATA_PROVIDER
 
 
 @pytest.mark.parametrize(
@@ -19,6 +19,7 @@ from leettutor.providers import GEMINI_PROVIDER, OPENAI_PROVIDER
         ("Ollama", "http://localhost:11434", "http://localhost:11434/v1"),
         ("Ollama", "localhost:11434/", "http://localhost:11434/v1"),
         ("LM Studio", "http://localhost:1234/v1/", "http://localhost:1234/v1"),
+        (STRATA_PROVIDER, "http://127.0.0.1:8080", "http://127.0.0.1:8080/v1"),
         (AMD_METAL_PROVIDER, "http://127.0.0.1:11435", "http://127.0.0.1:11435/v1"),
         (OPENAI_PROVIDER, "https://api.openai.com/v1/", "https://api.openai.com/v1"),
         (
@@ -32,7 +33,8 @@ def test_normalize_base_url(provider: str, raw: str, expected: str) -> None:
     assert normalize_base_url(provider, raw) == expected
 
 
-def test_list_and_stream_with_openai_compatible_shape() -> None:
+@pytest.mark.parametrize("provider", ["LM Studio", STRATA_PROVIDER])
+def test_list_and_stream_with_openai_compatible_shape(provider: str) -> None:
     class Value:
         def __init__(self, **values):
             self.__dict__.update(values)
@@ -46,7 +48,7 @@ def test_list_and_stream_with_openai_compatible_shape() -> None:
             )
 
     client = LocalLLMClient(
-        ProviderSettings("LM Studio", "http://localhost:1234/v1"),
+        ProviderSettings(provider, "http://localhost:1234/v1"),
         client_factory=lambda **_kwargs: FakeClient(),
     )
     assert client.list_models() == ["a", "z"]
@@ -60,7 +62,8 @@ def test_list_and_stream_with_openai_compatible_shape() -> None:
     ) == [ChatDelta("content", "hi")]
 
 
-def test_lm_studio_receives_qwen_thinking_controls() -> None:
+@pytest.mark.parametrize("provider", ["LM Studio", STRATA_PROVIDER])
+def test_local_provider_receives_qwen_thinking_controls(provider: str) -> None:
     class Value:
         def __init__(self, **values):
             self.__dict__.update(values)
@@ -77,7 +80,7 @@ def test_lm_studio_receives_qwen_thinking_controls() -> None:
             )
 
     client = LocalLLMClient(
-        ProviderSettings("LM Studio", "http://localhost:1234/v1"),
+        ProviderSettings(provider, "http://localhost:1234/v1"),
         client_factory=lambda **_kwargs: FakeClient(),
     )
     list(

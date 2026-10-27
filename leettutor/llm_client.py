@@ -18,7 +18,7 @@ from openai import (
 )
 
 from .metal_runtime import AMD_METAL_API_KEY, AMD_METAL_PROVIDER
-from .providers import GEMINI_PROVIDER, OPENAI_PROVIDER, is_cloud_provider
+from .providers import GEMINI_PROVIDER, OPENAI_PROVIDER, STRATA_PROVIDER, is_cloud_provider
 
 
 class LocalLLMError(RuntimeError):
@@ -89,6 +89,8 @@ class LocalLLMClient:
             default_key = AMD_METAL_API_KEY
         elif settings.provider == "LM Studio":
             default_key = "lm-studio"
+        elif settings.provider == STRATA_PROVIDER:
+            default_key = "local-strata"
         else:
             default_key = settings.api_key
         self._client = client_factory(
@@ -162,6 +164,7 @@ class LocalLLMClient:
                 request["reasoning_effort"] = reasoning_effort
             if "qwen3" in folded_model and self.settings.provider in {
                 "LM Studio",
+                STRATA_PROVIDER,
                 AMD_METAL_PROVIDER,
             }:
                 # Qwen 3.x chat templates expose a boolean thinking switch.

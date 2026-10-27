@@ -3,6 +3,7 @@
   "endpoints": {
     "Ollama": "http://localhost:11434",
     "LM Studio": "http://localhost:1234/v1",
+    "Strata": "http://127.0.0.1:8080/v1",
     "AMD Metal（Intel Mac）": "http://127.0.0.1:11435/v1",
     "OpenAI API": "https://api.openai.com/v1",
     "Gemini API": "https://generativelanguage.googleapis.com/v1beta/openai"
@@ -11,6 +12,7 @@
   "models": {
     "Ollama": "qwen3.5:9b",
     "LM Studio": "",
+    "Strata": "qwen3.8-flash-next-iq3_s",
     "AMD Metal（Intel Mac）": "qwen3.5:9b",
     "OpenAI API": "gpt-5.6-terra",
     "Gemini API": "gemini-3.6-flash"

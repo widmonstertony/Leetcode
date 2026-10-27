@@ -7,6 +7,7 @@ const RECOMMENDED_MODEL = "qwen3.5:9b";
 const PROVIDERS = {
   ollama: { endpoint: "http://127.0.0.1:11434", model: RECOMMENDED_MODEL },
   lmstudio: { endpoint: "http://127.0.0.1:1234", model: "local-model" },
+  strata: { endpoint: "http://127.0.0.1:1234", model: "qwen3.8-flash-next-iq3_s" },
   amdmetal: { endpoint: "http://127.0.0.1:11435", model: "qwen3.5-9b" },
   openai: { endpoint: "https://api.openai.com", model: "gpt-5-mini", key: true },
   gemini: { endpoint: "https://generativelanguage.googleapis.com", model: "gemini-2.5-flash", key: true },
@@ -63,6 +64,11 @@ function loadState() {
   state.settings = { ...defaultSettings(), ...readJson("settings", {}) };
   state.layout = { ...state.layout, ...readJson("layout", {}) };
   state.histories = { ...state.histories, ...readJson("histories", {}) };
+  // An explicit local-launch link selects Strata without touching study data.
+  if (new URLSearchParams(location.search).get("provider") === "strata") {
+    state.settings = { ...state.settings, provider: "strata", ...PROVIDERS.strata };
+    writeJson("settings", state.settings);
+  }
 }
 
 function savePreferences() {
@@ -517,7 +523,12 @@ async function callModel(messages) {
     const response = await timedFetch(`${providerUrl(`/v1beta/models/${encodeURIComponent(model)}:generateContent`)}?key=${encodeURIComponent(key)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents, generationConfig: { temperature: settings.temperature, topP: settings.topP, maxOutputTokens: settings.maxOutput } }) }, settings.timeout * 1000); if (!response.ok) throw new Error(`HTTP ${response.status}`); return (await response.json()).candidates?.[0]?.content?.parts?.map((part) => part.text).join("") || "";
   }
   const headers = { "Content-Type": "application/json" }; if (PROVIDERS[provider].key) headers.Authorization = `Bearer ${$("#api-key-input").value.trim()}`;
-  const response = await timedFetch(providerUrl("/v1/chat/completions"), { method: "POST", headers, body: JSON.stringify({ model, messages, temperature: settings.temperature, top_p: settings.topP, max_tokens: settings.maxOutput }) }, settings.timeout * 1000); if (!response.ok) throw new Error(`HTTP ${response.status}`); return (await response.json()).choices?.[0]?.message?.content || "";
+  const body = { model, messages, temperature: settings.temperature, top_p: settings.topP, max_tokens: settings.maxOutput };
+  if (settings.provider === "strata") {
+    body.reasoning_effort = settings.reasoning;
+    body.chat_template_kwargs = { enable_thinking: settings.reasoning !== "none" };
+  }
+  const response = await timedFetch(providerUrl("/v1/chat/completions"), { method: "POST", headers, body: JSON.stringify(body) }, settings.timeout * 1000); if (!response.ok) throw new Error(`HTTP ${response.status}`); return (await response.json()).choices?.[0]?.message?.content || "";
 }
 
 function systemReplyQuestion(content) {
